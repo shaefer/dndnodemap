@@ -1,5 +1,6 @@
 import type { MouseEvent, ReactNode } from "react";
 import type { BoundaryReason, MapNode, NodeType } from "../../types/map";
+import { isOutpostBranch, isWaterBranch } from "../../store/mapStore";
 
 // Fill/stroke per spec Section 10b, Layer 3. Shared across a NodeType's
 // Tier 1.5 forks — only shape/size/stroke-style differs by fork, not color.
@@ -13,21 +14,6 @@ const TYPE_STROKE: Record<NodeType, string> = {
   wilderness: "#185FA5",
   poi: "#BA7517",
 };
-
-// Tier 2 subtype unions used only to infer which Tier 1.5 fork a node is on
-// (spec Section 3c: the fork is never its own field). Absent subtype (M4.5 —
-// the generator doesn't assign Tier 2 yet) defaults to the "primary" branch:
-// civilian settlement, land wilderness.
-const WATER_FEATURES = new Set(["pond", "lake", "river_crossing", "hot_spring", "waterfall", "delta"]);
-const OUTPOST_KINDS = new Set(["monastery", "military_fort", "trading_post", "mining_camp", "waystation"]);
-
-function isWaterBranch(node: MapNode): boolean {
-  return node.type === "wilderness" && !!node.subtype && WATER_FEATURES.has(node.subtype);
-}
-
-function isOutpostBranch(node: MapNode): boolean {
-  return node.type === "settlement" && !!node.subtype && OUTPOST_KINDS.has(node.subtype);
-}
 
 const BOUNDARY_GLYPH: Record<BoundaryReason, string> = {
   mountain_range: "▲",

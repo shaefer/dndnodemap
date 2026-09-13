@@ -167,6 +167,34 @@ export function GeneratePanel() {
       </div>
 
       <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: "#888", textTransform: "uppercase", marginBottom: 6 }}>Tier 1.5 forks</div>
+        <RangeRow
+          label="Water (of Wilderness)"
+          min={0}
+          max={100}
+          value={Math.round(draftParams.wildernessWaterFraction * 100)}
+          displayValue={`${Math.round(draftParams.wildernessWaterFraction * 100)}%`}
+          onChange={(v) => updateDraftParam("wildernessWaterFraction", v / 100)}
+        />
+        <RangeRow
+          label="Outpost (of Settlement)"
+          min={0}
+          max={100}
+          value={Math.round(draftParams.settlementOutpostFraction * 100)}
+          displayValue={`${Math.round(draftParams.settlementOutpostFraction * 100)}%`}
+          onChange={(v) => updateDraftParam("settlementOutpostFraction", v / 100)}
+        />
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginTop: 4 }}>
+          <input
+            type="checkbox"
+            checked={draftParams.generateTerrainZones}
+            onChange={(e) => updateDraftParam("generateTerrainZones", e.target.checked)}
+          />
+          Generate terrain zones
+        </label>
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 11, color: "#888", textTransform: "uppercase", marginBottom: 6 }}>Seed</div>
         <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
           <input

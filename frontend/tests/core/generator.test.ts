@@ -24,7 +24,15 @@ const DEFAULT_PARAMS: GenerationParams = {
 function normalize(map: WorldMap) {
   const indexOf = new Map(map.nodes.map((n, i) => [n.id, i]));
   return {
-    nodes: map.nodes.map((n) => ({ label: n.label, type: n.type, boundary: n.boundary, gx: n.gx, gy: n.gy })),
+    nodes: map.nodes.map((n) => ({
+      label: n.label,
+      type: n.type,
+      subtype: n.subtype,
+      boundary: n.boundary,
+      coastal: n.coastal,
+      gx: n.gx,
+      gy: n.gy,
+    })),
     edges: map.edges.map((e) => ({
       from: indexOf.get(e.fromId),
       to: indexOf.get(e.toId),
@@ -77,32 +85,64 @@ describe("generateMap", () => {
     expect(map.algorithmVersion).toBe("2.0.0");
   });
 
-  it("never assigns generator-forbidden connection types (M4.5 — sea_route lands in M4.6)", () => {
+  it("never assigns seasonal — that stays a manual, DM-authored call (Section 3c)", () => {
     const map = generateMap(DEFAULT_PARAMS);
     for (const edge of map.edges) {
-      expect(edge.connectionType).not.toBe("sea_route");
       expect(edge.connectionType).not.toBe("seasonal");
     }
   });
 
-  it("never sets subtype, factionId, or extension data (M4.5 — Tier 2 subtype assignment lands in M4.6)", () => {
+  it("assigns a Tier 2 subtype to every wilderness/settlement/poi node, but never factionId or extension data beyond terrainZones", () => {
     const map = generateMap(DEFAULT_PARAMS);
-    expect(map.extensions).toEqual({});
     for (const node of map.nodes) {
-      expect(node.subtype).toBeUndefined();
+      expect(node.subtype).toBeDefined();
       expect(node.factionId).toBeUndefined();
     }
     for (const edge of map.edges) {
       expect(edge.travelDays).toBeUndefined();
     }
+    expect(map.extensions.factions).toBeUndefined();
+    expect(map.extensions.edgeTerrainTags).toBeUndefined();
   });
 
-  it("only ever places mountain_range boundary markers (M4.5 — other reasons land in M4.6)", () => {
+  it("places boundary markers with real reason variety, all valid", () => {
+    const VALID_REASONS = ["coastline", "mountain_range", "canyon_void", "magical_barrier"];
     const map = generateMap(DEFAULT_PARAMS);
     const markedNodes = map.nodes.filter((n) => n.boundary);
     expect(markedNodes.length).toBeGreaterThan(0);
     for (const node of markedNodes) {
-      expect(node.boundary?.reason).toBe("mountain_range");
+      expect(VALID_REASONS).toContain(node.boundary?.reason);
+    }
+  });
+
+  it("never assigns sea_route unless both endpoints are coastal", () => {
+    const seeds = [1, 2, 3, 42, 999];
+    for (const seed of seeds) {
+      const map = generateMap({ ...DEFAULT_PARAMS, seed });
+      const nodeById = new Map(map.nodes.map((n) => [n.id, n]));
+      for (const edge of map.edges) {
+        if (edge.connectionType !== "sea_route") continue;
+        expect(nodeById.get(edge.fromId)?.coastal).toBe(true);
+        expect(nodeById.get(edge.toId)?.coastal).toBe(true);
+      }
+    }
+  });
+
+  it("leaves extensions empty when generateTerrainZones is false", () => {
+    const map = generateMap(DEFAULT_PARAMS);
+    expect(map.extensions).toEqual({});
+  });
+
+  it("populates valid terrainZones when generateTerrainZones is true", () => {
+    const map = generateMap({ ...DEFAULT_PARAMS, generateTerrainZones: true });
+    expect(validateMap(map)).toEqual([]); // includes the extension-node-ref / faction-membership-unique checks
+    expect(map.extensions.factions).toBeUndefined();
+    if (map.extensions.terrainZones) {
+      const nodeIds = new Set(map.nodes.map((n) => n.id));
+      for (const zone of map.extensions.terrainZones) {
+        expect(zone.nodeIds.length).toBeGreaterThan(0);
+        for (const id of zone.nodeIds) expect(nodeIds.has(id)).toBe(true);
+      }
     }
   });
 });

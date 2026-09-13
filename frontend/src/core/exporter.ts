@@ -1,5 +1,6 @@
 import { oppositeDir } from "./compass";
 import { edgesForNode } from "./graph";
+import { isOutpostBranch, isWaterBranch } from "./taxonomy";
 import type { ConnectionType, MapNode, NodeType, WorldMap } from "../types/map";
 
 // --- toJSON ------------------------------------------------------------------
@@ -85,20 +86,6 @@ const TYPE_STROKE: Record<NodeType, string> = {
   wilderness: "#185FA5",
   poi: "#BA7517",
 };
-
-// Tier 2 subtype unions used only to infer which Tier 1.5 fork a node is on
-// (spec Section 3c — the fork is never its own field). Mirrors
-// components/canvas/NodeShape.tsx.
-const WATER_FEATURES = new Set(["pond", "lake", "river_crossing", "hot_spring", "waterfall", "delta"]);
-const OUTPOST_KINDS = new Set(["monastery", "military_fort", "trading_post", "mining_camp", "waystation"]);
-
-function isWaterBranch(node: MapNode): boolean {
-  return node.type === "wilderness" && !!node.subtype && WATER_FEATURES.has(node.subtype);
-}
-
-function isOutpostBranch(node: MapNode): boolean {
-  return node.type === "settlement" && !!node.subtype && OUTPOST_KINDS.has(node.subtype);
-}
 
 const BOUNDARY_GLYPH: Record<string, string> = {
   mountain_range: "▲",

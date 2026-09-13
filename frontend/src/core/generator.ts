@@ -1,16 +1,25 @@
 import type {
+  Biome,
   BoundaryMarker,
+  BoundaryReason,
+  CivilianScale,
   CompassDir,
   ConnectionType,
   GenerationParams,
   MapEdge,
   MapNode,
+  NodeSubtype,
   NodeType,
+  OutpostKind,
+  PoiKind,
+  WaterFeature,
   WorldMap,
 } from "../types/map";
+import type { TerrainZone } from "../types/extensions";
 import { ALL_DIRS, dirBetween, oppositeDir } from "./compass";
 import { freeDirections, usedDirections } from "./graph";
-import { makeRng, randInt, type RngFn } from "./rng";
+import { makeRng, randInt, randPick, type RngFn } from "./rng";
+import { BIOMES, isWaterBranch } from "./taxonomy";
 
 // Bump (minor) whenever the RNG call sequence below changes such that a given
 // seed would produce different output. Major version = breaking change to the
@@ -19,7 +28,10 @@ import { makeRng, randInt, type RngFn } from "./rng";
 // 2.0.0: taxonomy rework (spec Section 3c) — NodeType shrank to
 // settlement/wilderness/poi; the old "mountain" NodeType became a
 // BoundaryMarker (mountain_range reason) and the old "water" NodeType became
-// a Wilderness-internal fork. Breaking data-model change, not a minor bump.
+// a Wilderness-internal fork. M4.5 landed the migration with no new
+// generation variety; M4.6 (still 2.0.0 — same data model, just the
+// generator getting smarter within it) adds real Tier 2 subtype placement,
+// coastal/sea_route, and optional terrain-zone generation.
 export const ALGORITHM_VERSION = "2.0.0";
 
 type Zone = "center" | "mid" | "edge";
@@ -60,12 +72,40 @@ function midZoneBoundaryAllowed(col: number, row: number, gridCols: number, grid
 // independent per-cell probability everywhere.
 const MID_ZONE_BOUNDARY_DAMPING = 0.15;
 
-// M4.5 migrates the old mountain-only edge mechanic onto BoundaryMarker
-// as-is — every marker placed today is a mountain_range. M4.6 adds real
-// variety (coastline/canyon_void/magical_barrier) once terrain/coastal
-// awareness exists; picking uniformly among all four before that context
-// exists would just be noise.
-const ONLY_BOUNDARY_REASON = "mountain_range" as const;
+const BOUNDARY_REASONS: BoundaryReason[] = ["coastline", "mountain_range", "canyon_void", "magical_barrier"];
+
+// A node independently reads as coastal at this low rate even without a
+// coastline boundary marker, so coastal flavor isn't confined to the
+// boundary ring (spec Section 7, Step 1).
+const INDEPENDENT_COASTAL_CHANCE = 0.05;
+
+const BIOME_VALUES: Biome[] = ["forest", "swamp", "plains", "desert", "tundra", "jungle"];
+const WATER_FEATURE_VALUES: WaterFeature[] = ["pond", "lake", "river_crossing", "hot_spring", "waterfall", "delta"];
+const OUTPOST_KIND_VALUES: OutpostKind[] = ["monastery", "military_fort", "trading_post", "mining_camp", "waystation"];
+const POI_KIND_VALUES: PoiKind[] = ["ruin", "dungeon", "lair", "landmark"];
+
+// Civilian settlements skew toward village/town — city and especially
+// metropolis should be rare regardless of targetNodeCount, so a hard cap
+// backs up the weighting rather than relying on probability alone.
+const CIVILIAN_SCALE_WEIGHTS: Record<CivilianScale, number> = { village: 45, town: 35, city: 15, metropolis: 5 };
+const MAX_CITY_OR_ABOVE = 2;
+
+function pickCivilianScale(rng: RngFn, cityOrAboveCount: number): CivilianScale {
+  const allowCityOrAbove = cityOrAboveCount < MAX_CITY_OR_ABOVE;
+  const pool: CivilianScale[] = allowCityOrAbove ? ["village", "town", "city", "metropolis"] : ["village", "town"];
+  const weights = pool.map((s) => CIVILIAN_SCALE_WEIGHTS[s]);
+  const total = weights.reduce((a, b) => a + b, 0);
+  let roll = rng() * total;
+  for (let i = 0; i < pool.length; i++) {
+    roll -= weights[i];
+    if (roll <= 0) return pool[i];
+  }
+  return pool[pool.length - 1];
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
 function placeNodes(params: GenerationParams, rng: RngFn): MapNode[] {
   const cells: { col: number; row: number }[] = [];
@@ -92,9 +132,7 @@ function placeNodes(params: GenerationParams, rng: RngFn): MapNode[] {
   // Exact-budget type assignment: since all three Tier 1 types are eligible
   // in every zone now (spec Section 7 — zone only gates BoundaryMarker
   // placement, not type eligibility), the target nodeTypeBias split can be
-  // hit exactly with a shuffled bag instead of the old per-zone
-  // eligibility-plus-force-fill machinery that a 4-zone-restricted type list
-  // used to need.
+  // hit exactly with a shuffled bag instead of per-zone eligibility rules.
   const bias = params.nodeTypeBias;
   const totalWeight = bias.settlement + bias.wilderness + bias.poi;
   const settlementBudget = totalWeight > 0 ? Math.round(nodeCount * (bias.settlement / totalWeight)) : 0;
@@ -111,31 +149,60 @@ function placeNodes(params: GenerationParams, rng: RngFn): MapNode[] {
     [bag[i], bag[j]] = [bag[j], bag[i]];
   }
 
-  const counters: Record<NodeType, number> = { settlement: 0, wilderness: 0, poi: 0 };
-  const typeLabel: Record<NodeType, string> = {
-    settlement: "Settlement",
-    wilderness: "Wilderness",
-    poi: "Poi",
+  const labelCounters: Record<string, number> = {};
+  const nextLabel = (key: string): string => {
+    labelCounters[key] = (labelCounters[key] ?? 0) + 1;
+    return `${capitalize(key)}-${labelCounters[key]}`;
   };
+
+  let cityOrAboveCount = 0;
 
   const placed = zoned.map((cell, i) => {
     const type = bag[i] ?? "wilderness";
-    counters[type] += 1;
 
+    // Tier 1.5 fork + Tier 2 subtype.
+    let subtype: NodeSubtype;
+    if (type === "wilderness") {
+      if (rng() < params.wildernessWaterFraction) {
+        subtype = randPick(rng, WATER_FEATURE_VALUES);
+      } else {
+        subtype = randPick(rng, BIOME_VALUES);
+      }
+    } else if (type === "settlement") {
+      if (rng() < params.settlementOutpostFraction) {
+        subtype = randPick(rng, OUTPOST_KIND_VALUES);
+      } else {
+        subtype = pickCivilianScale(rng, cityOrAboveCount);
+        if (subtype === "city" || subtype === "metropolis") cityOrAboveCount++;
+      }
+    } else {
+      subtype = randPick(rng, POI_KIND_VALUES);
+    }
+
+    // Boundary marker.
     let boundary: BoundaryMarker | undefined;
     if (cell.zone === "edge") {
-      if (rng() < params.boundaryFraction) boundary = { reason: ONLY_BOUNDARY_REASON };
+      if (rng() < params.boundaryFraction) boundary = { reason: randPick(rng, BOUNDARY_REASONS) };
     } else if (cell.zone === "mid" && midZoneBoundaryAllowed(cell.col, cell.row, params.gridCols, params.gridRows)) {
-      if (rng() < params.boundaryFraction * MID_ZONE_BOUNDARY_DAMPING) boundary = { reason: ONLY_BOUNDARY_REASON };
+      if (rng() < params.boundaryFraction * MID_ZONE_BOUNDARY_DAMPING) {
+        boundary = { reason: randPick(rng, BOUNDARY_REASONS) };
+      }
     }
+
+    // Coastal — always true when the boundary reason is coastline; otherwise
+    // a low independent chance so coastal flavor isn't confined to the
+    // boundary ring.
+    const coastal = boundary?.reason === "coastline" ? true : rng() < INDEPENDENT_COASTAL_CHANCE;
 
     const gx = cell.col + (rng() - 0.5) * 0.5;
     const gy = cell.row + (rng() - 0.5) * 0.5;
     return {
       id: crypto.randomUUID(),
-      label: `${typeLabel[type]}-${counters[type]}`,
+      label: nextLabel(subtype),
       type,
+      subtype,
       ...(boundary ? { boundary } : {}),
+      ...(coastal ? { coastal: true } : {}),
       gx,
       gy,
     };
@@ -147,12 +214,16 @@ function placeNodes(params: GenerationParams, rng: RngFn): MapNode[] {
 // --- Step 2: edges -----------------------------------------------------------
 
 function connectionTypeFor(a: MapNode, b: MapNode, rng: RngFn): ConnectionType {
-  const aBoundary = a.boundary?.reason === "mountain_range";
-  const bBoundary = b.boundary?.reason === "mountain_range";
+  const aMountain = a.boundary?.reason === "mountain_range";
+  const bMountain = b.boundary?.reason === "mountain_range";
   const isMountainPair =
-    (aBoundary && (bBoundary || b.type === "wilderness")) ||
-    (bBoundary && (aBoundary || a.type === "wilderness"));
+    (aMountain && (bMountain || b.type === "wilderness")) ||
+    (bMountain && (aMountain || a.type === "wilderness"));
   if (isMountainPair) return "pass";
+
+  if (isWaterBranch(a) || isWaterBranch(b)) return "river_ford";
+
+  if (a.coastal && b.coastal) return "sea_route";
 
   const isSettlementPair =
     (a.type === "settlement" && (b.type === "settlement" || b.type === "wilderness")) ||
@@ -378,6 +449,53 @@ function repairConnectivity(
   return working;
 }
 
+// --- Step 2.5: optional terrain zones ----------------------------------------
+
+// Groups land-branch wilderness nodes that share a Biome into one TerrainZone
+// per biome present (a simple "same flavor = one zone" grouping — not
+// spatial clustering into multiple disconnected zones of the same biome;
+// that's more sophistication than a first pass needs). Also groups coastal
+// nodes into a single "ocean" zone when there are enough to be worth one.
+// Only called when params.generateTerrainZones is true (spec Section 7).
+function generateTerrainZonesStep(nodes: MapNode[]): TerrainZone[] {
+  const zones: TerrainZone[] = [];
+
+  const biomeGroups = new Map<Biome, string[]>();
+  for (const node of nodes) {
+    if (node.type === "wilderness" && node.subtype && BIOMES.has(node.subtype)) {
+      const biome = node.subtype as Biome;
+      const group = biomeGroups.get(biome) ?? [];
+      group.push(node.id);
+      biomeGroups.set(biome, group);
+    }
+  }
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  for (const [biome, nodeIds] of biomeGroups) {
+    if (nodeIds.length < 2) continue; // not worth a zone for a single node
+    const hasMountainRange = nodeIds.some((id) => nodeById.get(id)?.boundary?.reason === "mountain_range");
+    zones.push({
+      id: crypto.randomUUID(),
+      label: `The ${capitalize(biome)}`,
+      terrain: biome,
+      elevation: hasMountainRange ? "elevated" : "flatland",
+      nodeIds,
+    });
+  }
+
+  const coastalIds = nodes.filter((n) => n.coastal).map((n) => n.id);
+  if (coastalIds.length >= 2) {
+    zones.push({
+      id: crypto.randomUUID(),
+      label: "The Open Sea",
+      terrain: "ocean",
+      elevation: "flatland",
+      nodeIds: coastalIds,
+    });
+  }
+
+  return zones;
+}
+
 // --- Step 3: check-required marking ------------------------------------------
 
 const DIFFICULTY_RANK: Record<ConnectionType, number> = {
@@ -420,15 +538,18 @@ function markCheckRequired(
   const marked = edges.map((edge) => {
     const a = nodeById.get(edge.fromId)!;
     const b = nodeById.get(edge.toId)!;
+    const aMountain = a.boundary?.reason === "mountain_range";
+    const bMountain = b.boundary?.reason === "mountain_range";
+    const bothMountainish = (aMountain && b.boundary !== undefined) || (bMountain && a.boundary !== undefined);
+    const oneMountainOneWilderness = (aMountain && b.type === "wilderness") || (bMountain && a.type === "wilderness");
     const aBoundary = a.boundary !== undefined;
     const bBoundary = b.boundary !== undefined;
-    const bothBoundary = aBoundary && bBoundary;
     const oneBoundaryOneWilderness =
       (aBoundary && b.type === "wilderness") || (bBoundary && a.type === "wilderness");
     const neitherBoundary = !aBoundary && !bBoundary;
 
     let checkRequired = false;
-    if (bothBoundary) checkRequired = true;
+    if (bothMountainish || oneMountainOneWilderness) checkRequired = true;
     else if (oneBoundaryOneWilderness) checkRequired = rng() < params.checkRequiredFraction;
     else if (neitherBoundary) checkRequired = rng() < params.checkRequiredFraction * 0.2;
 
@@ -466,6 +587,7 @@ export function generateMap(params: GenerationParams): WorldMap {
   const built = buildEdges(nodes, params, rng);
   const checked = markCheckRequired(nodes, built, params, rng);
   const edges = assignCheckTypes(checked, rng);
+  const terrainZones = params.generateTerrainZones ? generateTerrainZonesStep(nodes) : undefined;
 
   const now = new Date().toISOString();
   return {
@@ -473,7 +595,7 @@ export function generateMap(params: GenerationParams): WorldMap {
     name: "Unnamed Region",
     nodes,
     edges,
-    extensions: {},
+    extensions: terrainZones && terrainZones.length > 0 ? { terrainZones } : {},
     params,
     algorithmVersion: ALGORITHM_VERSION,
     createdAt: now,

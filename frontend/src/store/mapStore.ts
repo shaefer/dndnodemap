@@ -3,8 +3,15 @@ import { oppositeDir } from "../core/compass";
 import { edgesForNode } from "../core/graph";
 import { generateMap } from "../core/generator";
 import { buildPrototypeMap } from "../core/prototypeMap";
+import { isOutpostBranch, isWaterBranch } from "../core/taxonomy";
 import { validateMap, type Violation } from "../core/validator";
 import type { CompassDir, GenerationParams, MapEdge, MapNode, WorldMap } from "../types/map";
+
+// Re-exported so the UI layer (components/) can infer a node's Tier 1.5 fork
+// for rendering choices without importing core/ directly — components may
+// only import store/, types/, and React (spec Section 2 / CLAUDE.md's
+// architecture contract).
+export { isOutpostBranch, isWaterBranch };
 
 const MAX_HISTORY = 30;
 const STORAGE_KEY = "overworld-current";

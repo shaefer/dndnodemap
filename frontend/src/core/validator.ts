@@ -140,6 +140,73 @@ function checkDirectionSymmetry(nodes: MapNode[], edges: MapEdge[]): Violation[]
   return violations;
 }
 
+// Extension invariants (spec Section 3b) — warn only, never blocking. Mostly
+// dormant until a map actually has extension data (M4.6's optional terrain-
+// zone generation is the first generator-side source of it; hand-authored
+// factions will be the other, once an editor exists for them).
+function checkExtensionNodeRefs(map: WorldMap): Violation[] {
+  const nodeIds = new Set(map.nodes.map((n) => n.id));
+  const violations: Violation[] = [];
+
+  for (const zone of map.extensions.terrainZones ?? []) {
+    for (const nodeId of zone.nodeIds) {
+      if (!nodeIds.has(nodeId)) {
+        violations.push({
+          rule: "extension-node-ref",
+          detail: `TerrainZone "${zone.label}" references a node that doesn't exist.`,
+          nodeId,
+        });
+      }
+    }
+  }
+  for (const faction of map.extensions.factions ?? []) {
+    for (const nodeId of faction.nodeIds) {
+      if (!nodeIds.has(nodeId)) {
+        violations.push({
+          rule: "extension-node-ref",
+          detail: `Faction "${faction.name}" references a node that doesn't exist.`,
+          nodeId,
+        });
+      }
+    }
+  }
+  return violations;
+}
+
+function checkExtensionEdgeRefs(map: WorldMap): Violation[] {
+  const edgeIds = new Set(map.edges.map((e) => e.id));
+  const violations: Violation[] = [];
+  for (const tag of map.extensions.edgeTerrainTags ?? []) {
+    if (!edgeIds.has(tag.edgeId)) {
+      violations.push({
+        rule: "extension-edge-ref",
+        detail: `EdgeTerrainTag references an edge that doesn't exist.`,
+        edgeId: tag.edgeId,
+      });
+    }
+  }
+  return violations;
+}
+
+function checkFactionMembershipUnique(map: WorldMap): Violation[] {
+  const seen = new Set<string>();
+  const violations: Violation[] = [];
+  for (const faction of map.extensions.factions ?? []) {
+    for (const nodeId of faction.nodeIds) {
+      if (seen.has(nodeId)) {
+        violations.push({
+          rule: "faction-membership-unique",
+          detail: `Node belongs to more than one Faction.`,
+          nodeId,
+        });
+      } else {
+        seen.add(nodeId);
+      }
+    }
+  }
+  return violations;
+}
+
 export function validateMap(map: WorldMap): Violation[] {
   return [
     ...checkOneDirectionPerNode(map.nodes, map.edges),
@@ -148,6 +215,9 @@ export function validateMap(map: WorldMap): Violation[] {
     ...checkBoundaryPlacement(map.nodes, map.params.gridCols, map.params.gridRows),
     ...checkMinimumExits(map.nodes, map.edges),
     ...checkNoStrandedCheckRequired(map.nodes, map.edges),
+    ...checkExtensionNodeRefs(map),
+    ...checkExtensionEdgeRefs(map),
+    ...checkFactionMembershipUnique(map),
     ...checkDirectionSymmetry(map.nodes, map.edges),
   ];
 }
