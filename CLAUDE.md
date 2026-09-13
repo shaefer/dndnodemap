@@ -72,7 +72,16 @@ Git is initialized locally as of M0. Whether/when to create a **remote** GitHub 
 
 ## Current Status
 
-M0–M2 complete. `frontend/` builds, 51 tests pass. `backend/` builds via `sam build`. Next: M3 (canvas rendering).
+M0–M3 complete. `frontend/` builds, 51 tests pass. `backend/` builds via `sam build`. The app renders the prototype 49-node map with pan/zoom/hover via `MapCanvas`; not yet visually verified in a browser by Claude (no browser-automation tool available in this environment) — verify pan/zoom/hover manually before treating M3 as fully signed off. Next: M4 (generation panel, seed system, exporter).
+
+## Notes on M3
+
+- `mapStore.ts` is intentionally minimal for this milestone: `{ map, generate }` only, with `map` initialized from `buildPrototypeMap()`. The full shape in spec Section 12 (selection, undo/redo, `draftParams`, `libraryStore` wiring) is M4/M5 scope — don't treat this file's current shape as final.
+- `generate()` takes an optional `GenerationParams` override with a module-level `DEFAULT_GENERATION_PARAMS` fallback (random seed, per spec Section 4's one sanctioned `Math.random()` use). This default will be replaced once `GeneratePanel.tsx` owns `draftParams` in M4 — don't build more on top of it.
+- `selectExitsForNode(map, nodeId)` lives in `mapStore.ts`, not in a component, per the Section 2 rule that UI must not derive map data inline. It reuses `core/graph.ts`'s `edgesForNode` and `core/compass.ts`'s `oppositeDir` — no new graph logic.
+- Canvas layout constants (1200×800 base SVG, margins, `nx`/`ny` projection) mirror `docs/overworld-map.html`'s numbers so the render stays visually close to the prototype, per that file's documented role as a visual reference (not an architectural one).
+- Node/edge visual styling (shapes, radii, colors, dash patterns, check-required overlay) follows spec Section 10b exactly. Only terrain/faction layers (Layer 0/1) and the layer-toggle toolbar are deliberately not built yet — extensions are always empty pre-M5/M6, so that UI would be premature.
+- Hover highlighting/dimming of connected nodes (present in the prototype) was deliberately left out — not part of M3's acceptance criteria, and adding it isn't free of judgment calls (e.g., interaction with future click-to-select). Revisit if/when M5 needs it.
 
 ## Notes on M2 (decisions made beyond the spec's literal pseudocode)
 
