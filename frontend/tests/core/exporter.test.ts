@@ -1,7 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { toJSON, toMarkdown, toSVGString } from "../../src/core/exporter";
+import { generateMap } from "../../src/core/generator";
 import { buildPrototypeMap } from "../../src/core/prototypeMap";
-import type { WorldMap } from "../../src/types/map";
+import type { GenerationParams, WorldMap } from "../../src/types/map";
+
+const DEFAULT_PARAMS: GenerationParams = {
+  seed: 12345,
+  targetNodeCount: 49,
+  gridCols: 10,
+  gridRows: 8,
+  nodeTypeBias: { settlement: 0.2, wilderness: 0.55, poi: 0.25 },
+  wildernessWaterFraction: 0.15,
+  settlementOutpostFraction: 0.25,
+  checkRequiredFraction: 0.25,
+  edgeDensity: 0.5,
+  boundaryFraction: 0.7,
+  generateTerrainZones: true,
+};
 
 describe("toJSON", () => {
   it("round-trips through JSON.parse with no loss", () => {
@@ -70,11 +85,46 @@ describe("toSVGString", () => {
     }
   });
 
-  it("draws a poi diamond and a mountain_range boundary badge for at least one node of each", () => {
+  it("draws a poi triangle and a mountain_range boundary badge for at least one node of each", () => {
     const svg = toSVGString(map);
     expect(map.nodes.some((n) => n.type === "poi")).toBe(true);
     expect(map.nodes.some((n) => n.boundary?.reason === "mountain_range")).toBe(true);
     expect(svg).toContain("<polygon");
     expect(svg).toContain("▲"); // mountain_range boundary badge glyph
+  });
+
+  it("renders terrain wash polygons and labels for a map with terrainZones", () => {
+    const generated = generateMap(DEFAULT_PARAMS);
+    expect(generated.extensions.terrainZones?.length ?? 0).toBeGreaterThan(0);
+    const svg = toSVGString(generated);
+    for (const zone of generated.extensions.terrainZones ?? []) {
+      if (zone.nodeIds.length < 3) continue; // hull needs >=3 members to render
+      expect(svg).toContain(zone.label);
+    }
+  });
+
+  it("omits terrain wash entirely when extensions.terrainZones is absent", () => {
+    const svg = toSVGString(map); // prototype map has no extensions
+    expect(map.extensions.terrainZones).toBeUndefined();
+    expect(svg).not.toContain("font-style=\"italic\"");
+  });
+
+  it("renders faction territory borders and labels when extensions.factions is present", () => {
+    const withFaction: WorldMap = {
+      ...map,
+      extensions: {
+        factions: [
+          {
+            id: "f1",
+            name: "The Ashen Concord",
+            borderStyle: "disputed",
+            nodeIds: map.nodes.slice(0, 5).map((n) => n.id),
+          },
+        ],
+      },
+    };
+    const svg = toSVGString(withFaction);
+    expect(svg).toContain("The Ashen Concord");
+    expect(svg).toContain('stroke-dasharray="8,4"'); // disputed border style
   });
 });

@@ -145,4 +145,27 @@ describe("generateMap", () => {
       }
     }
   });
+
+  it("clusters terrainZones by spatial proximity, not just matching biome (regression)", () => {
+    // Grouping every same-biome node map-wide (no distance limit) produces
+    // one hull per biome spanning nearly the whole grid — a real bug caught
+    // by visual inspection, not by any test at the time. A zone's members
+    // should sit close together; the grid's own diagonal (gridCols x
+    // gridRows) is a generous upper bound that a map-spanning blob would blow
+    // past, while a genuine regional cluster stays well under it.
+    const map = generateMap({ ...DEFAULT_PARAMS, generateTerrainZones: true });
+    const nodeById = new Map(map.nodes.map((n) => [n.id, n]));
+    const gridDiagonal = Math.hypot(DEFAULT_PARAMS.gridCols, DEFAULT_PARAMS.gridRows);
+    for (const zone of map.extensions.terrainZones ?? []) {
+      const members = zone.nodeIds.map((id) => nodeById.get(id)!);
+      let maxPairwiseDist = 0;
+      for (let i = 0; i < members.length; i++) {
+        for (let j = i + 1; j < members.length; j++) {
+          const d = Math.hypot(members[i].gx - members[j].gx, members[i].gy - members[j].gy);
+          maxPairwiseDist = Math.max(maxPairwiseDist, d);
+        }
+      }
+      expect(maxPairwiseDist).toBeLessThan(gridDiagonal * 0.6);
+    }
+  });
 });

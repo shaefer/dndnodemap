@@ -451,45 +451,87 @@ function repairConnectivity(
 
 // --- Step 2.5: optional terrain zones ----------------------------------------
 
-// Groups land-branch wilderness nodes that share a Biome into one TerrainZone
-// per biome present (a simple "same flavor = one zone" grouping — not
-// spatial clustering into multiple disconnected zones of the same biome;
-// that's more sophistication than a first pass needs). Also groups coastal
-// nodes into a single "ocean" zone when there are enough to be worth one.
-// Only called when params.generateTerrainZones is true (spec Section 7).
+// A zone should read as "a cluster of nearby nodes," not "every node of this
+// flavor anywhere on the map" — grouping purely by matching value (with no
+// distance limit) produces one giant hull per biome that mostly overlaps
+// every other biome's hull, which is unreadable once drawn. This threshold
+// keeps clusters regional; tune alongside CANDIDATE_RADIUS if it ever needs
+// to change (they answer related but distinct questions — edge candidacy vs.
+// zone membership).
+const TERRAIN_CLUSTER_RADIUS = 2.2;
+
+// Union-find over nodes already known to share some grouping key (a biome, or
+// "is coastal") — connects any two within TERRAIN_CLUSTER_RADIUS of each
+// other, then returns each resulting connected component as its own group.
+// Two same-biome nodes on opposite sides of the map end up in separate
+// clusters (and separate TerrainZones) instead of one map-spanning blob.
+function clusterBySpatialProximity(nodes: MapNode[]): MapNode[][] {
+  const parent = new Map<string, string>();
+  const find = (id: string): string => {
+    let root = id;
+    while (parent.get(root) !== undefined && parent.get(root) !== root) root = parent.get(root)!;
+    return root;
+  };
+  for (const n of nodes) parent.set(n.id, n.id);
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      if (dist(nodes[i], nodes[j]) <= TERRAIN_CLUSTER_RADIUS) {
+        const ra = find(nodes[i].id);
+        const rb = find(nodes[j].id);
+        if (ra !== rb) parent.set(ra, rb);
+      }
+    }
+  }
+  const groups = new Map<string, MapNode[]>();
+  for (const n of nodes) {
+    const root = find(n.id);
+    const group = groups.get(root) ?? [];
+    group.push(n);
+    groups.set(root, group);
+  }
+  return [...groups.values()];
+}
+
+// Groups land-branch wilderness nodes that share a Biome, clustered by
+// spatial proximity (see above) into one TerrainZone per regional cluster —
+// a biome present in two separate parts of the map yields two zones, not
+// one. Also clusters coastal nodes into "ocean" zone(s) the same way. Only
+// called when params.generateTerrainZones is true (spec Section 7).
 function generateTerrainZonesStep(nodes: MapNode[]): TerrainZone[] {
   const zones: TerrainZone[] = [];
 
-  const biomeGroups = new Map<Biome, string[]>();
+  const biomeGroups = new Map<Biome, MapNode[]>();
   for (const node of nodes) {
     if (node.type === "wilderness" && node.subtype && BIOMES.has(node.subtype)) {
       const biome = node.subtype as Biome;
       const group = biomeGroups.get(biome) ?? [];
-      group.push(node.id);
+      group.push(node);
       biomeGroups.set(biome, group);
     }
   }
-  const nodeById = new Map(nodes.map((n) => [n.id, n]));
-  for (const [biome, nodeIds] of biomeGroups) {
-    if (nodeIds.length < 2) continue; // not worth a zone for a single node
-    const hasMountainRange = nodeIds.some((id) => nodeById.get(id)?.boundary?.reason === "mountain_range");
-    zones.push({
-      id: crypto.randomUUID(),
-      label: `The ${capitalize(biome)}`,
-      terrain: biome,
-      elevation: hasMountainRange ? "elevated" : "flatland",
-      nodeIds,
-    });
+  for (const [biome, biomeNodes] of biomeGroups) {
+    for (const cluster of clusterBySpatialProximity(biomeNodes)) {
+      if (cluster.length < 2) continue; // not worth a zone for a single node
+      const hasMountainRange = cluster.some((n) => n.boundary?.reason === "mountain_range");
+      zones.push({
+        id: crypto.randomUUID(),
+        label: `The ${capitalize(biome)}`,
+        terrain: biome,
+        elevation: hasMountainRange ? "elevated" : "flatland",
+        nodeIds: cluster.map((n) => n.id),
+      });
+    }
   }
 
-  const coastalIds = nodes.filter((n) => n.coastal).map((n) => n.id);
-  if (coastalIds.length >= 2) {
+  const coastalNodes = nodes.filter((n) => n.coastal);
+  for (const cluster of clusterBySpatialProximity(coastalNodes)) {
+    if (cluster.length < 2) continue;
     zones.push({
       id: crypto.randomUUID(),
       label: "The Open Sea",
       terrain: "ocean",
       elevation: "flatland",
-      nodeIds: coastalIds,
+      nodeIds: cluster.map((n) => n.id),
     });
   }
 

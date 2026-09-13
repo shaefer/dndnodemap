@@ -1,19 +1,26 @@
 import type { MouseEvent, ReactNode } from "react";
-import type { BoundaryReason, MapNode, NodeType } from "../../types/map";
+import type { BoundaryReason, MapNode } from "../../types/map";
 import { isOutpostBranch, isWaterBranch } from "../../store/mapStore";
 
-// Fill/stroke per spec Section 10b, Layer 3. Shared across a NodeType's
-// Tier 1.5 forks — only shape/size/stroke-style differs by fork, not color.
-const TYPE_FILL: Record<NodeType, string> = {
-  settlement: "#5DCAA5",
-  wilderness: "#85B7EB",
-  poi: "#EF9F27",
+// Fill/stroke per spec Section 10b, Layer 3.
+const SETTLEMENT_COLOR = { fill: "#F2C14E", stroke: "#9C6B0A" };
+const WATER_COLOR = { fill: "#185FA5", stroke: "#0F3D6B" };
+const POI_COLOR = { fill: "#8B5FBF", stroke: "#5C3D80" };
+
+// Wilderness land-branch color varies by Biome subtype — the one place color
+// carries meaning within a Tier 1 type, since biome identity is exactly what
+// a DM wants to read at a glance. Falls back to a plain green for a
+// land-branch node with no subtype yet (shouldn't happen post-M4.6, but a
+// hand-edited or imported map could have one).
+const BIOME_COLOR: Record<string, { fill: string; stroke: string }> = {
+  forest: { fill: "#3B6D11", stroke: "#24430A" },
+  swamp: { fill: "#5F6B2A", stroke: "#3D4519" },
+  desert: { fill: "#BA7517", stroke: "#8A5710" },
+  plains: { fill: "#C9C93D", stroke: "#8F8F22" },
+  tundra: { fill: "#A8A8A0", stroke: "#5F5E5A" },
+  jungle: { fill: "#27500A", stroke: "#173206" },
 };
-const TYPE_STROKE: Record<NodeType, string> = {
-  settlement: "#0F6E56",
-  wilderness: "#185FA5",
-  poi: "#BA7517",
-};
+const DEFAULT_LAND_COLOR = BIOME_COLOR.forest;
 
 const BOUNDARY_GLYPH: Record<BoundaryReason, string> = {
   mountain_range: "▲",
@@ -31,31 +38,36 @@ interface NodeShapeProps {
 }
 
 export function NodeShape({ node, x, y, onMouseEnter, onMouseLeave }: NodeShapeProps) {
-  const fill = TYPE_FILL[node.type];
-  const stroke = TYPE_STROKE[node.type];
-
   let shape: ReactNode;
   let r: number;
+  let badgeColor: string;
+
   switch (node.type) {
     case "settlement": {
       const outpost = isOutpostBranch(node);
-      r = outpost ? 8 : 11;
-      shape = (
-        <circle
-          cx={x}
-          cy={y}
-          r={r}
-          fill={fill}
-          stroke={stroke}
-          strokeWidth={1.8}
-          strokeDasharray={outpost ? "3,2" : undefined}
-        />
-      );
+      const { fill, stroke } = SETTLEMENT_COLOR;
+      badgeColor = stroke;
+      if (outpost) {
+        r = 8;
+        shape = (
+          <polygon
+            points={`${x},${y - r} ${x + r},${y} ${x},${y + r} ${x - r},${y}`}
+            fill={fill}
+            stroke={stroke}
+            strokeWidth={1.8}
+          />
+        );
+      } else {
+        r = 11;
+        shape = <rect x={x - r} y={y - r} width={r * 2} height={r * 2} rx={2} fill={fill} stroke={stroke} strokeWidth={1.8} />;
+      }
       break;
     }
     case "wilderness": {
       if (isWaterBranch(node)) {
         r = 9;
+        const { fill, stroke } = WATER_COLOR;
+        badgeColor = stroke;
         shape = (
           <>
             <circle cx={x} cy={y} r={r} fill={fill} stroke={stroke} strokeWidth={1} />
@@ -64,21 +76,26 @@ export function NodeShape({ node, x, y, onMouseEnter, onMouseLeave }: NodeShapeP
         );
       } else {
         r = 7;
+        const { fill, stroke } = (node.subtype && BIOME_COLOR[node.subtype]) || DEFAULT_LAND_COLOR;
+        badgeColor = stroke;
         shape = <circle cx={x} cy={y} r={r} fill={fill} stroke={stroke} strokeWidth={1.8} />;
       }
       break;
     }
-    case "poi":
+    case "poi": {
       r = 10;
+      const { fill, stroke } = POI_COLOR;
+      badgeColor = stroke;
       shape = (
         <polygon
-          points={`${x},${y - r} ${x + r},${y} ${x},${y + r} ${x - r},${y}`}
+          points={`${x},${y - r} ${x + r * 0.9},${y + r * 0.6} ${x - r * 0.9},${y + r * 0.6}`}
           fill={fill}
           stroke={stroke}
           strokeWidth={1.8}
         />
       );
       break;
+    }
   }
 
   return (
@@ -90,7 +107,7 @@ export function NodeShape({ node, x, y, onMouseEnter, onMouseLeave }: NodeShapeP
           y={y - r * 0.7}
           textAnchor="middle"
           fontSize={9}
-          fill={stroke}
+          fill={badgeColor}
           style={{ pointerEvents: "none" }}
         >
           {BOUNDARY_GLYPH[node.boundary.reason]}

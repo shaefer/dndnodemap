@@ -678,18 +678,35 @@ Check-required edges additionally get the existing dashed-orange overlay treatme
 Direction labels always render regardless of connection type.
 
 **Layer 3 — Nodes**
-Always visible. `NodeType` and its Tier 1.5 fork (Section 3c) together determine shape:
+Always visible. Shape now comes from `NodeType` + Tier 1.5 fork; color comes from `NodeType` for settlement/poi, but from the **Tier 2 subtype** for wilderness — this is the one place color varies *within* a Tier 1 type, because biome identity is exactly the thing a DM wants to read at a glance:
 ```
-settlement, civilian branch → filled circle, large (r=11)
-settlement, outpost branch  → filled circle, medium (r=8), double/dashed stroke
-                               — reads as "settlement-family but specialized," not a new shape vocabulary
-wilderness, land branch     → filled circle, small (r=7)
-wilderness, water branch    → filled circle with inner ring (r=9, inner ring r=5, 1px stroke)
-                               — the ring visually signals "this is a feature, not a settlement";
-                                 same shape the old "water" NodeType used, just a different discriminant now
-poi                          → filled diamond
+settlement, civilian branch → filled square,  large (r=11), fill #F2C14E, stroke #9C6B0A
+settlement, outpost branch  → filled diamond, medium (r=8), fill #F2C14E, stroke #9C6B0A
+                               — same color as civilian (still "settlement family"), shape carries the fork
+wilderness, land branch     → filled circle, small (r=7), color by Biome subtype (below)
+wilderness, water branch    → filled circle with inner ring (r=9, inner ring r=5, 1px stroke),
+                               fill #185FA5, stroke #0F3D6B
+                               — the ring is kept as an extra shape cue beyond color (both blue and
+                                 river_ford/sea_route edges read as blue; the ring keeps a water NODE
+                                 from being confused with a water-colored EDGE at a glance)
+poi                          → filled triangle, r=10, fill #8B5FBF, stroke #5C3D80
+                               — one look for all four PoiKind values (ruin/dungeon/lair/landmark);
+                                 subtype is available on click/hover, not encoded as a fourth shape/color
 ```
-(The old `mountain` shape — filled square — is gone entirely; a node "being mountainous" is now the `mountain_range` boundary marker below, not a base shape.)
+(The old `mountain` shape — filled square — is gone as a *base* shape; a node "being mountainous" is the `mountain_range` boundary marker below, not a Tier-1/fork shape. Squares are reused here for settlement instead.)
+
+**Wilderness land-branch color by `Biome` subtype** (reuses the terrain-wash hues above as solid node fills, not washes — same palette, two different opacities/purposes):
+```
+forest  → fill #3B6D11, stroke #24430A
+swamp   → fill #5F6B2A, stroke #3D4519
+desert  → fill #BA7517, stroke #8A5710
+plains  → fill #C9C93D, stroke #8F8F22
+         — deliberately a paler, more muted yellow than settlement's #F2C14E so a plains node
+           and a settlement square don't read as "the same color, different shape" at a glance
+tundra  → fill #A8A8A0, stroke #5F5E5A
+jungle  → fill #27500A, stroke #173206
+```
+If six distinct biome colors read as too busy on a dense map in practice, the fallback is collapsing to two colors (green land / blue water) — try the full six first (per direct instruction) and only fall back if it doesn't work visually.
 
 **Boundary marker badge** — layered on top of *any* node's base shape (Layer 3, drawn after the shape), independent of `NodeType`/fork, when `MapNode.boundary` is set:
 ```
@@ -1210,6 +1227,18 @@ Acceptance: full test suite passes against the new types; prototype and freshly-
 Deliverables: `core/generator.ts` gains real Tier 2 subtype assignment for all three Tier 1 types — `Biome`/`WaterFeature` via `wildernessWaterFraction`, `CivilianScale`/`OutpostKind` via `settlementOutpostFraction`, `PoiKind` for every poi node — plus `coastal` flag assignment, `sea_route` connection-type assignment, and the optional `generateTerrainZones` step (Section 7, Step 2.5). `core/names.ts` extended with name pools for the new subtypes where a placeholder label benefits from it.
 
 Acceptance: `generator.test.ts` asserts every wilderness/settlement/poi node gets a Tier 2 subtype (never anything deeper — Tier 3+ stays generator-untouched, Section 3c); `sea_route` never appears unless both endpoints are `coastal`; `extensions.terrainZones` is empty when `generateTerrainZones` is false and populated with valid zone data when true (existing extension invariants still hold); `extensions.factions` stays empty regardless — the generator never touches it, not even opt-in; same seed + params still reproduces identical output across every new dimension.
+
+### M4.7 — Visual layers and node shape/color revamp
+
+Inserted once M4.6 made `TerrainZone` data real (via `generateTerrainZones`) and it became clear nothing renders it — Section 10b's full 4-layer visual system (terrain wash, faction territory, edges, nodes) was completely spec'd but Layer 0/1 and the layer-toggle toolbar were never actually assigned to any milestone. This closes that hole, and also revamps node shape/color per Section 10b's updated table (settlement square/diamond in yellow, wilderness circle colored by `Biome` subtype, poi as a purple triangle — colors/shapes above superseding what M3 originally shipped).
+
+Deliverables:
+- `core/geometry.ts` — a pure `convexHull(points)` function (and a hull-padding helper for Layer 1's ~12px expansion), used by both the live canvas and `toSVGString` so the two rendering paths share one implementation
+- `components/canvas/TerrainWash.tsx` (Layer 0) and `components/canvas/FactionTerritory.tsx` (Layer 1), rendered in `MapCanvas.tsx` beneath the existing edges/nodes layers
+- `components/toolbar/Toolbar.tsx` — the four-button layer toggle from Section 10b, wired to local UI-only visibility state (never `WorldMap` data — toggling must not touch the store)
+- `NodeShape.tsx` and `exporter.ts`'s `toSVGString` updated in lockstep for the new shape/color table
+
+Acceptance: a map generated with `generateTerrainZones: true` shows colored terrain washes on the canvas immediately; importing a hand-authored `WorldMap` JSON with `extensions.factions` populated shows faction borders (no Faction *editor* exists yet — this only needs to prove the render path works via import, per `GeneratePanel`'s existing Import JSON); toolbar buttons for Terrain/Factions are greyed out with a tooltip when that extension is empty; toggling a layer never mutates the map (undo stack unaffected); `toSVGString` output includes the same terrain wash / faction territory elements as the live canvas for the same map; new node shapes/colors match Section 10b exactly, including the plains-vs-settlement yellow distinction.
 
 ### M5 — Edit panels
 Deliverables: `NodePanel.tsx`, `EdgePanel.tsx`, `DirectionPicker.tsx`, `NodeTypeSelect.tsx`

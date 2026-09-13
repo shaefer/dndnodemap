@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState, type MouseEvent, type WheelEvent } from "react";
 import { selectExitsForNode, useMapStore } from "../../store/mapStore";
 import type { MapNode } from "../../types/map";
+import { Toolbar } from "../toolbar/Toolbar";
 import { EdgeLine } from "./EdgeLine";
+import { FactionTerritory } from "./FactionTerritory";
 import { NodeShape } from "./NodeShape";
+import { TerrainWash } from "./TerrainWash";
 import { Tooltip } from "./Tooltip";
 
 // Base SVG canvas size and margins, matching docs/overworld-map.html's layout
@@ -35,6 +38,10 @@ export function MapCanvas() {
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, scale: 1 });
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  // Layer visibility is pure UI state (spec Section 10b) — it never touches
+  // WorldMap data, so it lives here, not in the store.
+  const [terrainVisible, setTerrainVisible] = useState(false);
+  const [factionsVisible, setFactionsVisible] = useState(false);
 
   const gridCols = map.params.gridCols;
   const gridRows = map.params.gridRows;
@@ -102,61 +109,80 @@ export function MapCanvas() {
 
   const nodeById = new Map(map.nodes.map((n) => [n.id, n]));
   const hoveredNode = hoveredNodeId ? (nodeById.get(hoveredNodeId) ?? null) : null;
+  const terrainZones = map.extensions.terrainZones ?? [];
+  const factions = map.extensions.factions ?? [];
+  const project = (node: MapNode) => ({ x: nx(node), y: ny(node) });
 
   return (
-    <div
-      ref={wrapRef}
-      onMouseDown={handleMouseDown}
-      onWheel={handleWheel}
-      style={{
-        position: "relative",
-        width: "100%",
-        height: "100%",
-        overflow: "hidden",
-        cursor: "grab",
-        background: "#faf9f6",
-      }}
-    >
-      <svg
-        width={SVG_W}
-        height={SVG_H}
-        viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+    <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%" }}>
+      <Toolbar
+        terrainVisible={terrainVisible}
+        factionsVisible={factionsVisible}
+        hasTerrainData={terrainZones.length > 0}
+        hasFactionData={factions.length > 0}
+        onToggleTerrain={() => setTerrainVisible((v) => !v)}
+        onToggleFactions={() => setFactionsVisible((v) => !v)}
+      />
+      <div
+        ref={wrapRef}
+        onMouseDown={handleMouseDown}
+        onWheel={handleWheel}
         style={{
-          transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
-          transformOrigin: "0 0",
+          position: "relative",
+          flex: 1,
+          minHeight: 0,
+          overflow: "hidden",
+          cursor: "grab",
+          background: "#faf9f6",
         }}
       >
-        <rect width={SVG_W} height={SVG_H} fill="#faf9f6" />
-        <g>
-          {map.edges.map((edge) => {
-            const from = nodeById.get(edge.fromId);
-            const to = nodeById.get(edge.toId);
-            if (!from || !to) return null;
-            return <EdgeLine key={edge.id} edge={edge} x1={nx(from)} y1={ny(from)} x2={nx(to)} y2={ny(to)} />;
-          })}
-        </g>
-        <g>
-          {map.nodes.map((node) => (
-            <NodeShape
-              key={node.id}
-              node={node}
-              x={nx(node)}
-              y={ny(node)}
-              onMouseEnter={(e) => handleNodeEnter(node, e)}
-              onMouseLeave={() => setHoveredNodeId(null)}
-            />
-          ))}
-        </g>
-      </svg>
-      {hoveredNode && (
-        <Tooltip
-          node={hoveredNode}
-          exits={selectExitsForNode(map, hoveredNode.id)}
-          x={tooltipPos.x}
-          y={tooltipPos.y}
-          containerWidth={wrapRef.current?.clientWidth ?? SVG_W}
-        />
-      )}
+        <svg
+          width={SVG_W}
+          height={SVG_H}
+          viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+          style={{
+            transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
+            transformOrigin: "0 0",
+          }}
+        >
+          <rect width={SVG_W} height={SVG_H} fill="#faf9f6" />
+          {terrainVisible && terrainZones.length > 0 && (
+            <TerrainWash zones={terrainZones} nodeById={nodeById} project={project} />
+          )}
+          {factionsVisible && factions.length > 0 && (
+            <FactionTerritory factions={factions} nodeById={nodeById} project={project} />
+          )}
+          <g>
+            {map.edges.map((edge) => {
+              const from = nodeById.get(edge.fromId);
+              const to = nodeById.get(edge.toId);
+              if (!from || !to) return null;
+              return <EdgeLine key={edge.id} edge={edge} x1={nx(from)} y1={ny(from)} x2={nx(to)} y2={ny(to)} />;
+            })}
+          </g>
+          <g>
+            {map.nodes.map((node) => (
+              <NodeShape
+                key={node.id}
+                node={node}
+                x={nx(node)}
+                y={ny(node)}
+                onMouseEnter={(e) => handleNodeEnter(node, e)}
+                onMouseLeave={() => setHoveredNodeId(null)}
+              />
+            ))}
+          </g>
+        </svg>
+        {hoveredNode && (
+          <Tooltip
+            node={hoveredNode}
+            exits={selectExitsForNode(map, hoveredNode.id)}
+            x={tooltipPos.x}
+            y={tooltipPos.y}
+            containerWidth={wrapRef.current?.clientWidth ?? SVG_W}
+          />
+        )}
+      </div>
     </div>
   );
 }
