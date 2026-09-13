@@ -1,0 +1,15 @@
+{
+  "name": "backend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "sam build"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.152",
+    "@types/node": "^24.13.3",
+    "esbuild": "^0.24.0",
+    "typescript": "~5.9.0"
+  }
+}

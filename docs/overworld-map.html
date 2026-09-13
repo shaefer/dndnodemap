@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Overworld Node Map</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #f5f4f0; color: #2c2c2a; }
+  #app { display: flex; flex-direction: column; height: 100vh; }
+  #toolbar {
+    display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+    background: #fff; border-bottom: 1px solid #e0ddd6; flex-shrink: 0; flex-wrap: wrap;
+  }
+  #toolbar h1 { font-size: 15px; font-weight: 500; margin-right: 8px; }
+  button {
+    padding: 6px 14px; font-size: 13px; border: 1px solid #ccc; border-radius: 6px;
+    background: #fff; cursor: pointer; transition: background 0.15s;
+  }
+  button:hover { background: #f0ede8; }
+  button.primary { background: #2c2c2a; color: #fff; border-color: #2c2c2a; }
+  button.primary:hover { background: #444; }
+  #status { font-size: 12px; color: #888; margin-left: auto; }
+  #canvas-wrap {
+    flex: 1; overflow: hidden; position: relative; cursor: grab;
+  }
+  #canvas-wrap.grabbing { cursor: grabbing; }
+  #map-svg { position: absolute; top: 0; left: 0; }
+  #tooltip {
+    position: absolute; background: #fff; border: 1px solid #ddd; border-radius: 8px;
+    padding: 8px 12px; font-size: 12px; pointer-events: none; display: none;
+    z-index: 10; min-width: 130px; max-width: 220px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  #tooltip strong { font-size: 13px; display: block; margin-bottom: 2px; }
+  #tooltip .type { color: #888; font-size: 11px; margin-bottom: 5px; }
+  #tooltip .exits { border-top: 1px solid #eee; margin-top: 5px; padding-top: 5px; }
+  #tooltip .exit { padding: 1px 0; }
+  .legend {
+    position: absolute; bottom: 16px; left: 16px; background: rgba(255,255,255,0.92);
+    border: 1px solid #ddd; border-radius: 8px; padding: 10px 14px; font-size: 12px;
+  }
+  .legend-row { display: flex; align-items: center; gap: 7px; margin: 3px 0; color: #555; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .diamond-icon { width: 10px; height: 10px; flex-shrink: 0; transform: rotate(45deg); border-radius: 1px; }
+  .line-icon { width: 22px; height: 2px; flex-shrink: 0; }
+  .dashed-icon { width: 22px; height: 2px; flex-shrink: 0; background: repeating-linear-gradient(90deg,#D85A30 0,#D85A30 4px,transparent 4px,transparent 7px); }
+  #zoom-hint { font-size: 11px; color: #aaa; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="toolbar">
+    <h1>Overworld map</h1>
+    <button onclick="zoom(1.2)">+ zoom</button>
+    <button onclick="zoom(0.83)">− zoom</button>
+    <button onclick="resetView()">reset view</button>
+    <button class="primary" onclick="exportPNG()">⬇ download PNG</button>
+    <button onclick="exportSVG()">⬇ download SVG</button>
+    <span id="status"></span>
+    <span id="zoom-hint">scroll to zoom · drag to pan · hover nodes for exits</span>
+  </div>
+  <div id="canvas-wrap">
+    <svg id="map-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div id="tooltip"></div>
+    <div class="legend">
+      <div class="legend-row"><div class="dot" style="background:#5DCAA5;border:1.5px solid #0F6E56"></div> Settlement</div>
+      <div class="legend-row"><div class="dot" style="background:#85B7EB;border:1.5px solid #185FA5"></div> Wilderness</div>
+      <div class="legend-row"><div class="dot" style="background:#B4B2A9;border:1.5px solid #5F5E5A"></div> Mountain fringe</div>
+      <div class="legend-row"><div class="diamond-icon" style="background:#EF9F27;border:1.5px solid #BA7517"></div> Ruin / Landmark</div>
+      <div class="legend-row"><div class="line-icon" style="background:#888780"></div> Road</div>
+      <div class="legend-row"><div class="dashed-icon"></div> Check required</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const NODES = [
+  {id:0,  label:"Ashford",       type:"settlement", gx:3, gy:3},
+  {id:1,  label:"Millhaven",     type:"settlement", gx:5, gy:2},
+  {id:2,  label:"Thornwall",     type:"settlement", gx:1, gy:3},
+  {id:3,  label:"Duskhollow",    type:"settlement", gx:3, gy:5},
+  {id:4,  label:"Briargate",     type:"settlement", gx:6, gy:4},
+  {id:5,  label:"Crestfall",     type:"settlement", gx:2, gy:1},
+  {id:6,  label:"Irongate",      type:"settlement", gx:7, gy:2},
+  {id:7,  label:"Fenwatch",      type:"settlement", gx:1, gy:6},
+  {id:8,  label:"Coldmere",      type:"settlement", gx:4, gy:7},
+  {id:9,  label:"Saltwick",      type:"settlement", gx:8, gy:5},
+  {id:10, label:"Greenvale",     type:"wilderness", gx:3, gy:2},
+  {id:11, label:"The Thornwood", type:"wilderness", gx:2, gy:4},
+  {id:12, label:"Bogmere Flats", type:"wilderness", gx:1, gy:5},
+  {id:13, label:"Hollow Reach",  type:"wilderness", gx:4, gy:4},
+  {id:14, label:"Ashwood Trail", type:"wilderness", gx:4, gy:2},
+  {id:15, label:"Fen Run",       type:"wilderness", gx:0, gy:5},
+  {id:16, label:"Silver Moor",   type:"wilderness", gx:5, gy:5},
+  {id:17, label:"Copperwood",    type:"wilderness", gx:6, gy:3},
+  {id:18, label:"Reed Marshes",  type:"wilderness", gx:2, gy:6},
+  {id:19, label:"The Veldtway",  type:"wilderness", gx:5, gy:3},
+  {id:20, label:"Longstride",    type:"wilderness", gx:6, gy:6},
+  {id:21, label:"Drifting Loch", type:"wilderness", gx:3, gy:6},
+  {id:22, label:"Briar Heath",   type:"wilderness", gx:2, gy:2},
+  {id:23, label:"Greywood Fen",  type:"wilderness", gx:0, gy:4},
+  {id:24, label:"East Run",      type:"wilderness", gx:7, gy:4},
+  {id:25, label:"Dunmore Ford",  type:"wilderness", gx:4, gy:5},
+  {id:26, label:"Pale Crossing", type:"wilderness", gx:5, gy:6},
+  {id:27, label:"The Shelf",     type:"mountain",   gx:0, gy:2},
+  {id:28, label:"Scar Ridge",    type:"mountain",   gx:0, gy:3},
+  {id:29, label:"High Notch",    type:"mountain",   gx:1, gy:2},
+  {id:30, label:"Greypass",      type:"mountain",   gx:1, gy:0},
+  {id:31, label:"Stoneback",     type:"mountain",   gx:0, gy:6},
+  {id:32, label:"Rimfall",       type:"mountain",   gx:0, gy:7},
+  {id:33, label:"Peakwatch",     type:"mountain",   gx:4, gy:0},
+  {id:34, label:"Crownspire",    type:"mountain",   gx:6, gy:0},
+  {id:35, label:"Ironwall Ridge",type:"mountain",   gx:8, gy:1},
+  {id:36, label:"The Far Spur",  type:"mountain",   gx:8, gy:7},
+  {id:37, label:"Highfell East", type:"mountain",   gx:9, gy:4},
+  {id:38, label:"Tumble Pass",   type:"mountain",   gx:8, gy:3},
+  {id:39, label:"Old Barrow",    type:"ruin",       gx:3, gy:4},
+  {id:40, label:"Wraith Hollow", type:"ruin",       gx:2, gy:3},
+  {id:41, label:"Sunken Spire",  type:"ruin",       gx:4, gy:3},
+  {id:42, label:"Gloomgate",     type:"ruin",       gx:5, gy:4},
+  {id:43, label:"The Black Mere",type:"ruin",       gx:1, gy:7},
+  {id:44, label:"Ashgrave",      type:"ruin",       gx:3, gy:1},
+  {id:45, label:"Warden's Last", type:"ruin",       gx:7, gy:6},
+  {id:46, label:"Crumbled Keep", type:"ruin",       gx:7, gy:3},
+  {id:47, label:"Oathstone",     type:"ruin",       gx:6, gy:1},
+  {id:48, label:"The Deep Fane", type:"ruin",       gx:6, gy:7},
+];
+
+const EDGES = [
+  [0,10,"N"],[0,22,"NW"],[0,14,"NE"],[0,39,"S"],[0,13,"SE"],[0,11,"W"],
+  [10,22,"W"],[10,14,"E"],[10,5,"NW"],[10,44,"N"],
+  [5,22,"SE"],[5,29,"W"],[5,30,"NW",true],[5,44,"E"],
+  [22,29,"NW"],[22,40,"SW"],[22,11,"S"],[22,27,"W",true],
+  [27,28,"S"],[27,29,"SE"],[28,23,"S"],[28,40,"E"],
+  [29,30,"N",true],[23,15,"S"],[23,12,"SE"],
+  [11,40,"N"],[11,12,"S"],[11,2,"W"],
+  [2,40,"NE"],[2,12,"SE"],[2,29,"N",true],
+  [40,39,"E"],[40,28,"NW"],
+  [12,15,"W"],[12,18,"S"],[12,7,"SE"],
+  [15,31,"S",true],[15,32,"SW",true],
+  [7,18,"NE"],[7,43,"S",true],[7,31,"W",true],
+  [18,21,"E"],[18,8,"SE"],[18,43,"SW"],
+  [31,32,"S"],[43,32,"SE"],
+  [39,13,"E"],[39,41,"N"],[39,3,"S"],
+  [41,14,"N"],[41,19,"E"],[41,0,"SW"],[41,42,"SE"],
+  [14,1,"E"],[14,33,"N",true],[14,47,"NE"],
+  [1,19,"SW"],[1,6,"E"],[1,47,"NW"],
+  [47,34,"N",true],[47,6,"E"],[47,33,"W"],
+  [6,35,"N",true],[6,46,"S"],[6,38,"SW"],
+  [34,35,"E"],[33,34,"E"],
+  [35,38,"S"],[38,46,"N"],[38,24,"SE"],
+  [46,17,"W"],[46,24,"SE"],[46,37,"E",true],
+  [24,9,"SE"],[24,16,"SW"],[24,37,"E",true],
+  [37,9,"S",true],
+  [17,19,"W"],[17,4,"SE"],[17,42,"S"],
+  [19,42,"S"],[19,4,"SE"],
+  [42,16,"SE"],[42,13,"W"],[42,4,"E"],
+  [4,9,"E"],[4,16,"S"],[4,20,"SE"],
+  [9,20,"SW"],[9,45,"SW"],[9,36,"S",true],
+  [20,26,"W"],[20,45,"NW"],[20,48,"SW"],
+  [45,26,"SW"],[45,48,"S"],
+  [48,36,"SE",true],[48,26,"N"],
+  [36,37,"N",true],
+  [13,3,"S"],[13,25,"SE"],
+  [3,25,"E"],[3,21,"W"],[3,8,"SE"],[3,16,"NE"],
+  [25,16,"N"],[25,8,"E"],[25,26,"SE"],
+  [8,26,"E"],[8,21,"W"],
+  [21,18,"W"],[21,26,"SE"],
+  [44,30,"NW",true],[44,33,"NE",true],
+  [30,5,"SE"],[30,33,"E",true],
+];
+
+const SVG_W = 1200, SVG_H = 800;
+const MARGIN = { l: 60, r: 60, t: 40, b: 40 };
+const COLS = 10, ROWS = 8;
+const CELL_W = (SVG_W - MARGIN.l - MARGIN.r) / (COLS - 1);
+const CELL_H = (SVG_H - MARGIN.t - MARGIN.b) / (ROWS - 1);
+
+function nx(node) { return MARGIN.l + node.gx * CELL_W; }
+function ny(node) { return MARGIN.t + node.gy * CELL_H; }
+
+const TYPE_FILL   = { settlement:"#5DCAA5", wilderness:"#85B7EB", mountain:"#B4B2A9", ruin:"#EF9F27" };
+const TYPE_STROKE = { settlement:"#0F6E56", wilderness:"#185FA5", mountain:"#5F5E5A", ruin:"#BA7517" };
+
+let transform = {x:0, y:0, scale:1};
+let dragging = false, dragStart = {x:0,y:0}, originT = {x:0,y:0};
+
+function svgNS(tag) { return document.createElementNS("http://www.w3.org/2000/svg", tag); }
+
+function buildMap() {
+  const svg = document.getElementById("map-svg");
+  svg.setAttribute("width", SVG_W);
+  svg.setAttribute("height", SVG_H);
+  svg.setAttribute("viewBox", `0 0 ${SVG_W} ${SVG_H}`);
+  svg.innerHTML = "";
+
+  // White background for export
+  const bg = svgNS("rect");
+  bg.setAttribute("width", SVG_W); bg.setAttribute("height", SVG_H);
+  bg.setAttribute("fill", "#faf9f6");
+  svg.appendChild(bg);
+
+  // Title
+  const title = svgNS("text");
+  title.setAttribute("x", SVG_W/2); title.setAttribute("y", 22);
+  title.setAttribute("text-anchor", "middle"); title.setAttribute("font-size", "14");
+  title.setAttribute("fill", "#888"); title.setAttribute("font-family", "system-ui, sans-serif");
+  title.textContent = "Overworld Region Map";
+  svg.appendChild(title);
+
+  const gEdges = svgNS("g"); gEdges.id = "g-edges";
+  EDGES.forEach(([a,b,dir,check]) => {
+    const na = NODES[a], nb = NODES[b];
+    const x1=nx(na),y1=ny(na),x2=nx(nb),y2=ny(nb);
+    const mx=(x1+x2)/2, my=(y1+y2)/2;
+    const line = svgNS("line");
+    line.setAttribute("x1",x1);line.setAttribute("y1",y1);
+    line.setAttribute("x2",x2);line.setAttribute("y2",y2);
+    line.setAttribute("stroke", check ? "#D85A30" : "#888780");
+    line.setAttribute("stroke-width","1.8");
+    if(check) line.setAttribute("stroke-dasharray","6,5");
+    line.setAttribute("opacity","0.65");
+    line.dataset.a=a; line.dataset.b=b;
+    gEdges.appendChild(line);
+
+    const lbl = svgNS("text");
+    lbl.setAttribute("x",mx); lbl.setAttribute("y",my-5);
+    lbl.setAttribute("text-anchor","middle"); lbl.setAttribute("font-size","9");
+    lbl.setAttribute("fill", check?"#D85A30":"#888780");
+    lbl.setAttribute("opacity","0.8");
+    lbl.setAttribute("font-family","system-ui,sans-serif");
+    lbl.setAttribute("pointer-events","none");
+    lbl.textContent = dir;
+    gEdges.appendChild(lbl);
+  });
+  svg.appendChild(gEdges);
+
+  const gNodes = svgNS("g"); gNodes.id = "g-nodes";
+  NODES.forEach(node => {
+    const x=nx(node), y=ny(node);
+    const r = node.type==="settlement" ? 11 : node.type==="ruin" ? 9 : 7;
+    const g = svgNS("g"); g.dataset.id=node.id; g.style.cursor="pointer";
+
+    if(node.type==="ruin") {
+      const s=r+2;
+      const d=svgNS("polygon");
+      d.setAttribute("points",`${x},${y-s} ${x+s},${y} ${x},${y+s} ${x-s},${y}`);
+      d.setAttribute("fill",TYPE_FILL[node.type]);
+      d.setAttribute("stroke",TYPE_STROKE[node.type]);
+      d.setAttribute("stroke-width","1.8");
+      g.appendChild(d);
+    } else if(node.type==="mountain") {
+      const s=r+1;
+      const sq=svgNS("rect");
+      sq.setAttribute("x",x-s); sq.setAttribute("y",y-s);
+      sq.setAttribute("width",s*2); sq.setAttribute("height",s*2);
+      sq.setAttribute("rx","2");
+      sq.setAttribute("fill",TYPE_FILL[node.type]);
+      sq.setAttribute("stroke",TYPE_STROKE[node.type]);
+      sq.setAttribute("stroke-width","1.5");
+      g.appendChild(sq);
+    } else {
+      const c=svgNS("circle");
+      c.setAttribute("cx",x); c.setAttribute("cy",y); c.setAttribute("r",r);
+      c.setAttribute("fill",TYPE_FILL[node.type]);
+      c.setAttribute("stroke",TYPE_STROKE[node.type]);
+      c.setAttribute("stroke-width","1.8");
+      g.appendChild(c);
+    }
+
+    const lbl=svgNS("text");
+    lbl.setAttribute("x",x); lbl.setAttribute("y",y+r+12);
+    lbl.setAttribute("text-anchor","middle"); lbl.setAttribute("font-size","10");
+    lbl.setAttribute("fill","#444"); lbl.setAttribute("font-family","system-ui,sans-serif");
+    lbl.setAttribute("pointer-events","none");
+    lbl.setAttribute("font-weight","500");
+    lbl.textContent=node.label;
+    g.appendChild(lbl);
+
+    g.addEventListener("mouseenter", e=>showTip(node,e));
+    g.addEventListener("mouseleave", hideTip);
+    gNodes.appendChild(g);
+  });
+  svg.appendChild(gNodes);
+
+  // Legend inside SVG (for export)
+  const leg = svgNS("g");
+  const legData = [
+    {color:"#5DCAA5",stroke:"#0F6E56",shape:"circle",label:"Settlement"},
+    {color:"#85B7EB",stroke:"#185FA5",shape:"circle",label:"Wilderness"},
+    {color:"#B4B2A9",stroke:"#5F5E5A",shape:"square",label:"Mountain fringe"},
+    {color:"#EF9F27",stroke:"#BA7517",shape:"diamond",label:"Ruin / Landmark"},
+  ];
+  const lbg = svgNS("rect");
+  lbg.setAttribute("x",SVG_W-170); lbg.setAttribute("y",SVG_H-120);
+  lbg.setAttribute("width","155"); lbg.setAttribute("height","108");
+  lbg.setAttribute("rx","6"); lbg.setAttribute("fill","rgba(255,255,255,0.88)");
+  lbg.setAttribute("stroke","#ddd");
+  leg.appendChild(lbg);
+  legData.forEach(({color,stroke,shape,label},i) => {
+    const lx=SVG_W-158, ly=SVG_H-103+i*22;
+    if(shape==="diamond") {
+      const s=6, dp=svgNS("polygon");
+      dp.setAttribute("points",`${lx},${ly-s} ${lx+s},${ly} ${lx},${ly+s} ${lx-s},${ly}`);
+      dp.setAttribute("fill",color); dp.setAttribute("stroke",stroke); dp.setAttribute("stroke-width","1.2");
+      leg.appendChild(dp);
+    } else if(shape==="square") {
+      const s=6, sq=svgNS("rect");
+      sq.setAttribute("x",lx-s); sq.setAttribute("y",ly-s);
+      sq.setAttribute("width",s*2); sq.setAttribute("height",s*2);
+      sq.setAttribute("rx","1"); sq.setAttribute("fill",color);
+      sq.setAttribute("stroke",stroke); sq.setAttribute("stroke-width","1.2");
+      leg.appendChild(sq);
+    } else {
+      const c=svgNS("circle");
+      c.setAttribute("cx",lx); c.setAttribute("cy",ly); c.setAttribute("r","6");
+      c.setAttribute("fill",color); c.setAttribute("stroke",stroke); c.setAttribute("stroke-width","1.2");
+      leg.appendChild(c);
+    }
+    const lt=svgNS("text");
+    lt.setAttribute("x",lx+12); lt.setAttribute("y",ly+4);
+    lt.setAttribute("font-size","10"); lt.setAttribute("fill","#555");
+    lt.setAttribute("font-family","system-ui,sans-serif");
+    lt.textContent=label;
+    leg.appendChild(lt);
+  });
+  // dashed line legend entry
+  const dll=svgNS("line");
+  dll.setAttribute("x1",SVG_W-164); dll.setAttribute("y1",SVG_H-15);
+  dll.setAttribute("x2",SVG_W-152); dll.setAttribute("y2",SVG_H-15);
+  dll.setAttribute("stroke","#D85A30"); dll.setAttribute("stroke-width","1.5");
+  dll.setAttribute("stroke-dasharray","4,3");
+  leg.appendChild(dll);
+  const dlt=svgNS("text");
+  dlt.setAttribute("x",SVG_W-146); dlt.setAttribute("y",SVG_H-11);
+  dlt.setAttribute("font-size","10"); dlt.setAttribute("fill","#D85A30");
+  dlt.setAttribute("font-family","system-ui,sans-serif");
+  dlt.textContent="Check required";
+  leg.appendChild(dlt);
+  svg.appendChild(leg);
+
+  applyTransform();
+}
+
+function oppositeDir(d) {
+  return {N:"S",S:"N",E:"W",W:"E",NE:"SW",SW:"NE",NW:"SE",SE:"NW"}[d]||d;
+}
+
+function showTip(node, e) {
+  const exits = EDGES
+    .filter(([a,b])=>a===node.id||b===node.id)
+    .map(([a,b,dir,check])=>{
+      const other=a===node.id?b:a;
+      const d=a===node.id?dir:oppositeDir(dir);
+      return `<div class="exit">${d} → ${NODES[other].label}${check?' ⚠':''}</div>`;
+    }).join('');
+  const tt=document.getElementById("tooltip");
+  tt.innerHTML=`<strong>${node.label}</strong><div class="type">${node.type}</div>${exits?`<div class="exits">${exits}</div>`:''}`;
+  const wrap=document.getElementById("canvas-wrap");
+  const rect=wrap.getBoundingClientRect();
+  let lx=e.clientX-rect.left+14, ly=e.clientY-rect.top+14;
+  if(lx+230>rect.width) lx=e.clientX-rect.left-240;
+  tt.style.left=lx+"px"; tt.style.top=ly+"px"; tt.style.display="block";
+  highlight(node.id);
+}
+function hideTip() {
+  document.getElementById("tooltip").style.display="none";
+  unhighlight();
+}
+
+function highlight(id) {
+  const conn=new Set([id]);
+  EDGES.forEach(([a,b])=>{if(a===id||b===id){conn.add(a);conn.add(b);}});
+  document.querySelectorAll("#g-nodes > g").forEach(g=>{
+    g.setAttribute("opacity", conn.has(parseInt(g.dataset.id))?"1":"0.2");
+  });
+  document.querySelectorAll("#g-edges > line").forEach(l=>{
+    const a=parseInt(l.dataset.a), b=parseInt(l.dataset.b);
+    l.setAttribute("opacity",(a===id||b===id)?"1":"0.1");
+  });
+}
+function unhighlight() {
+  document.querySelectorAll("#g-nodes > g").forEach(g=>g.setAttribute("opacity","1"));
+  document.querySelectorAll("#g-edges > line").forEach(l=>l.setAttribute("opacity","0.65"));
+}
+
+function applyTransform() {
+  const svg=document.getElementById("map-svg");
+  svg.style.transform=`translate(${transform.x}px,${transform.y}px) scale(${transform.scale})`;
+  svg.style.transformOrigin="0 0";
+}
+function zoom(f) {
+  const wrap=document.getElementById("canvas-wrap");
+  const cx=wrap.clientWidth/2, cy=wrap.clientHeight/2;
+  transform.x=cx-f*(cx-transform.x);
+  transform.y=cy-f*(cy-transform.y);
+  transform.scale=Math.max(0.3,Math.min(4,transform.scale*f));
+  applyTransform();
+}
+function resetView() { transform={x:0,y:0,scale:1}; applyTransform(); }
+
+function exportPNG() {
+  const status=document.getElementById("status");
+  status.textContent="Preparing image…";
+  const svg=document.getElementById("map-svg");
+  const clone=svg.cloneNode(true);
+  clone.style.transform="none";
+  clone.setAttribute("xmlns","http://www.w3.org/2000/svg");
+  const blob=new Blob([new XMLSerializer().serializeToString(clone)],{type:"image/svg+xml"});
+  const url=URL.createObjectURL(blob);
+  const img=new Image();
+  img.onload=()=>{
+    const scale=2;
+    const canvas=document.createElement("canvas");
+    canvas.width=SVG_W*scale; canvas.height=SVG_H*scale;
+    const ctx=canvas.getContext("2d");
+    ctx.scale(scale,scale);
+    ctx.drawImage(img,0,0);
+    URL.revokeObjectURL(url);
+    const a=document.createElement("a");
+    a.download="overworld-map.png";
+    a.href=canvas.toDataURL("image/png");
+    a.click();
+    status.textContent="PNG downloaded.";
+    setTimeout(()=>status.textContent="",3000);
+  };
+  img.onerror=()=>{status.textContent="PNG export failed — try SVG instead.";};
+  img.src=url;
+}
+
+function exportSVG() {
+  const status=document.getElementById("status");
+  const svg=document.getElementById("map-svg");
+  const clone=svg.cloneNode(true);
+  clone.style.transform="none";
+  clone.setAttribute("xmlns","http://www.w3.org/2000/svg");
+  const blob=new Blob([new XMLSerializer().serializeToString(clone)],{type:"image/svg+xml"});
+  const a=document.createElement("a");
+  a.download="overworld-map.svg";
+  a.href=URL.createObjectURL(blob);
+  a.click();
+  status.textContent="SVG downloaded.";
+  setTimeout(()=>status.textContent="",3000);
+}
+
+const wrap=document.getElementById("canvas-wrap");
+wrap.addEventListener("mousedown",e=>{
+  dragging=true; dragStart={x:e.clientX,y:e.clientY}; originT={...transform};
+  wrap.classList.add("grabbing");
+});
+window.addEventListener("mousemove",e=>{
+  if(!dragging)return;
+  transform.x=originT.x+(e.clientX-dragStart.x);
+  transform.y=originT.y+(e.clientY-dragStart.y);
+  applyTransform();
+});
+window.addEventListener("mouseup",()=>{dragging=false;wrap.classList.remove("grabbing");});
+wrap.addEventListener("wheel",e=>{
+  e.preventDefault();
+  const f=e.deltaY<0?1.12:0.89;
+  const rect=wrap.getBoundingClientRect();
+  const cx=e.clientX-rect.left, cy=e.clientY-rect.top;
+  transform.x=cx-f*(cx-transform.x);
+  transform.y=cy-f*(cy-transform.y);
+  transform.scale=Math.max(0.3,Math.min(4,transform.scale*f));
+  applyTransform();
+},{passive:false});
+
+buildMap();
+</script>
+</body>
+</html>

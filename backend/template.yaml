@@ -1,0 +1,44 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Timeout: 10
+    MemorySize: 256
+  HttpApi:
+    CorsConfiguration:
+      AllowOrigins:
+        - "https://your-app.netlify.app"   # update before production deploy
+        - "http://localhost:5173"           # Vite dev server
+      AllowMethods:
+        - POST
+        - OPTIONS
+      AllowHeaders:
+        - Content-Type
+
+Resources:
+  GenerateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: dist/lambda/generate.handler
+      CodeUri: ./
+      Events:
+        Generate:
+          Type: HttpApi
+          Properties:
+            Path: /generate
+            Method: post
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - src/lambda/generate.ts
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
