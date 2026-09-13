@@ -72,4 +72,4 @@ Git is initialized locally as of M0. Whether/when to create a **remote** GitHub 
 
 ## Current Status
 
-M0 (repo scaffold) complete: `frontend/` (Vite + React + TS + Vitest) builds; `backend/` (SAM scaffold, stub Lambda handler) builds via `sam build`. Next step: M1 — `frontend/src/types/map.ts`, `frontend/src/types/extensions.ts`, `frontend/src/core/rng.ts`, `frontend/src/core/compass.ts`, `frontend/src/core/graph.ts`, and their tests, per spec Section 17's M1 prompt.
+M0 and M1 complete. `frontend/` builds and 34 tests pass (`rng.ts`, `compass.ts`, `graph.ts` + full coverage); `backend/` builds via `sam build`. Next step: M2 — `frontend/src/core/generator.ts`, `frontend/src/core/validator.ts`, `frontend/src/core/names.ts`, per spec Section 17's M2 prompt template.
