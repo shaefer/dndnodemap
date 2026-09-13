@@ -84,37 +84,67 @@ Types are split into two files: core types that the generator uses, and extensio
 // All CompassDir values — the full 8-direction set
 export type CompassDir = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW";
 
-// The five primary node categories — permanent and generator-aware
-// water = a visitable body of water (small lake, pond, river crossing, waterfall)
-//         Scale rule: if a party travels *to* it and makes decisions there → node.
-//         If it defines an entire region's character → TerrainZone (extension layer).
-export type NodeType = "settlement" | "wilderness" | "mountain" | "ruin" | "water";
+// --- Tier 1: NodeType — "what kind of place is this" -------------------------
+// See Section 3c for the full tiered-classification model (Tier 1 / Tier 1.5
+// forks / Tier 2 subtype / Boundary / Tier 3+). All three values are
+// generator-aware — the generator can place any of them.
+export type NodeType = "settlement" | "wilderness" | "poi";
 
-// Optional specificity within a NodeType — user-assigned, never generator-assigned
-export type SettlementSubtype =
-  | "city" | "town" | "outpost" | "port" | "monastery" | "waystation";
+// --- Tier 1.5: Wilderness forks into Land | Water ----------------------------
+// The fork is inferable from which subtype union `subtype` belongs to — no
+// separate "branch" field. A wilderness node's subtype is always either a
+// Biome (land branch) or a WaterFeature (water branch).
 
-export type WildernessSubtype =
-  | "forest" | "swamp" | "plains" | "desert" | "coast" | "grove" | "canyon";
+// Biome: Tier 2 for the land branch. Shared with TerrainZone.terrain (Section
+// 3b) — the same vocabulary describes one node's flavor or a whole zone's
+// ambient condition, just at different scope. Elevation/hilliness/canyon
+// character lives on TerrainZone.elevation instead (zone-scale only — see
+// Section 3b); it is deliberately not a per-node field.
+export type Biome = "forest" | "swamp" | "plains" | "desert" | "tundra" | "jungle";
 
-export type MountainSubtype =
-  | "peak" | "pass" | "cliff" | "ridge" | "cave";
-
-export type RuinSubtype =
-  | "dungeon" | "lair" | "monument" | "tomb" | "tower" | "shrine";
-
-// water subtypes: small-scale visitable water features
-// river_crossing = the node where you deal with a river — bridge, ford, ferry, etc.
-// The map shows the challenge; how the party solves it is not the map's problem.
-export type WaterSubtype =
+// WaterFeature: Tier 2 for the water branch — small-scale visitable water
+// features. river_crossing = the node where you deal with a river — bridge,
+// ford, ferry, etc. The map shows the challenge; how the party solves it is
+// not the map's problem. Large water bodies (a lake or ocean that shapes a
+// whole region) are TerrainZone terrain, not a node — see Section 3b.
+export type WaterFeature =
   | "pond" | "lake" | "river_crossing" | "hot_spring" | "waterfall" | "delta";
 
-export type NodeSubtype =
-  | SettlementSubtype
-  | WildernessSubtype
-  | MountainSubtype
-  | RuinSubtype
-  | WaterSubtype;
+// --- Tier 1.5: Settlement forks into Civilian | Outpost ----------------------
+// Same inference rule — the fork is implied by which union `subtype` is in.
+
+// CivilianScale: Tier 2 for the civilian branch — a population/importance
+// scale, not an architectural style (that's Tier 3, e.g. "port" or "walled
+// city" — deferred, not yet modeled).
+export type CivilianScale = "village" | "town" | "city" | "metropolis";
+
+// OutpostKind: Tier 2 for the outpost branch — small, purpose-built,
+// low-population places defined by function rather than size. A wizard's
+// tower or lighthouse is a `poi` (Landmark), not an OutpostKind — it's too
+// singular/unique to be "a type of outpost."
+export type OutpostKind =
+  | "monastery" | "military_fort" | "trading_post" | "mining_camp" | "waystation";
+
+// --- Tier 2: Point of Interest — no Tier 1.5 fork (for now) ------------------
+export type PoiKind = "ruin" | "dungeon" | "lair" | "landmark";
+
+export type NodeSubtype = Biome | WaterFeature | CivilianScale | OutpostKind | PoiKind;
+
+// --- Boundary: an orthogonal secondary marker, not a type or subtype ---------
+// Any node, regardless of its NodeType/subtype, can carry a boundary marker
+// recording that it sits at the edge of the generated region and why. This
+// replaces the old "mountain" NodeType entirely — a node near mountains is
+// still a wilderness (or settlement, or poi) node that happens to carry a
+// mountain_range boundary marker. Deliberately excludes political
+// frontier/"border territory" — a settlement with any boundary marker already
+// reads as a border settlement; no separate flag needed (see Section 3c).
+export type BoundaryReason =
+  | "coastline" | "mountain_range" | "canyon_void" | "magical_barrier";
+
+export interface BoundaryMarker {
+  reason: BoundaryReason;
+  notes?: string;
+}
 
 // How a connection presents physically — affects rendering and default check behavior
 // river_ford:  edge leading into or out of a river_crossing node — check per conditions
@@ -129,14 +159,16 @@ export type ConnectionType =
   | "seasonal";     // conditionally passable — see edge.notes
 
 export interface MapNode {
-  id: string;           // uuid v4
-  label: string;        // e.g. "Ashford"
+  id: string;               // uuid v4
+  label: string;             // e.g. "Ashford"
   type: NodeType;
-  subtype?: NodeSubtype; // optional — user-assigned, never generator-assigned
-  gx: number;           // logical grid col — float OK (jitter applied)
-  gy: number;           // logical grid row — float OK
-  notes?: string;       // DM notes, not rendered on map
-  factionId?: string;   // ref to Faction.id — extension layer, nullable
+  subtype?: NodeSubtype;     // Tier 2 — generator-assignable (Section 3c); Tier 3+ detail is always user-only
+  boundary?: BoundaryMarker; // optional — generator-assignable; any NodeType may carry one
+  coastal?: boolean;         // additive feature — orthogonal to subtype; independent of boundary.reason === "coastline" (Section 3c)
+  gx: number;                // logical grid col — float OK (jitter applied)
+  gy: number;                // logical grid row — float OK
+  notes?: string;            // DM notes, not rendered on map
+  factionId?: string;        // ref to Faction.id — extension layer, nullable
 }
 
 export interface MapEdge {
@@ -158,7 +190,7 @@ export interface WorldMap {
   edges: MapEdge[];
   extensions: MapExtensions; // always present, all fields optional
   params: GenerationParams;  // always present — hand-edited maps carry their origin params
-  algorithmVersion: string;  // semver string, e.g. "1.0.0" — set by generator
+  algorithmVersion: string;  // semver string, e.g. "2.0.0" — set by generator
   createdAt: string;         // ISO 8601
   updatedAt: string;
 }
@@ -172,21 +204,34 @@ export interface GenerationParams {
   gridCols: number;          // 6–14, default 10
   gridRows: number;          // 5–12, default 8
 
-  // Node type frequency (four values must sum to 1.0)
+  // Node type frequency (three values must sum to 1.0)
   nodeTypeBias: {
-    settlement: number;      // default 0.18
-    wilderness: number;      // default 0.45
-    mountain: number;        // default 0.22
-    ruin: number;            // default 0.15
+    settlement: number;      // default 0.20
+    wilderness: number;      // default 0.55
+    poi: number;             // default 0.25
   };
+
+  // Tier 1.5 fork fractions — how much of each Tier 1 type's placements land
+  // on the "secondary" branch; the rest take the "primary" branch.
+  wildernessWaterFraction: number;    // 0.0–1.0, default 0.15 — fraction of wilderness placements that are water (vs. land/biome)
+  settlementOutpostFraction: number;  // 0.0–1.0, default 0.25 — fraction of settlement placements that are outposts (vs. civilian-scale)
 
   // Difficulty / traversal
   checkRequiredFraction: number;  // 0.0–1.0, default 0.25
   edgeDensity: number;            // 0.0–1.0, default 0.5
                                   // 0 = sparse (avg 2–3 exits/node), 1 = dense (avg 5–6 exits)
 
-  // Containment
-  mountainEdgeFraction: number;   // 0.0–1.0, default 0.7
+  // Containment — replaces the old mountain-specific mountainEdgeFraction.
+  // Fraction of edge-zone nodes that receive a boundary marker (any reason);
+  // the generator picks a reason per node (Section 7) rather than this being
+  // exposed per-reason, keeping the params surface small for now.
+  boundaryFraction: number;       // 0.0–1.0, default 0.7
+
+  // Optional physical-plausibility layer (Section 7, Step 2.5). Off by
+  // default — most maps don't need terrain zones, and this is the one
+  // generator capability that writes to `extensions` (still leaving
+  // `extensions.factions` untouched always — see Section 3c).
+  generateTerrainZones: boolean;  // default false
 }
 
 // What gets saved in the library
@@ -208,6 +253,8 @@ export interface SavedEntry {
 The `MapExtensions` container lives on `WorldMap` so extensions round-trip cleanly through JSON export without any migration logic.
 
 ```ts
+import type { Biome } from "./map"; // circular type-only import — erased at compile time, TypeScript handles this fine
+
 // The container — always present on WorldMap, all fields optional arrays
 export interface MapExtensions {
   terrainZones?: TerrainZone[];
@@ -217,20 +264,32 @@ export interface MapExtensions {
 
 // --- Terrain ---
 
-// TerrainType: ambient regional conditions — large-scale, not a destination
-// lake / ocean obey the scale rule: large bodies that shape a region belong here.
-// Small visitable water features (ponds, river crossings) are water nodes instead.
+// TerrainType: ambient regional conditions — large-scale, not a destination.
+// Reuses Biome (Section 3a) rather than re-listing it — a node's flavor and a
+// zone's ambient condition are the same vocabulary at different scope (see
+// Section 3c). "coast" is valid here as a zone-wide ambient condition even
+// though it's a per-node boolean (MapNode.coastal) at node scope — a whole
+// region can read as coastal without every member node being individually
+// flagged. lake / ocean obey the scale rule: large bodies that shape a region
+// belong here. Small visitable water features (ponds, river crossings) are
+// WaterFeature nodes instead (Section 3a).
 export type TerrainType =
-  | "forest" | "swamp" | "desert" | "plains"
-  | "hills" | "tundra" | "coast" | "jungle"
+  | Biome
+  | "coast"
   | "lake" | "ocean";    // large water bodies — traversal requires sea_route edges
 
+// Elevation/topography texture — zone-scale only (Section 3c explains why
+// this isn't also a per-node field). hills and canyon were both considered as
+// new node-level "terrain features" and folded in here instead: hills is just
+// naming what "rolling"/"elevated" already mean, canyon is "valley" (or
+// "steep" for a more dramatic, cliff-walled gorge) — one topography axis, not
+// two overlapping ones.
 export type ElevationHint =
   | "flatland"   // no notable elevation change
   | "rolling"    // gentle hills
   | "elevated"   // high ground, plateaus
-  | "steep"      // cliffs, dramatic drops
-  | "valley";    // sunken terrain
+  | "steep"      // cliffs, dramatic drops — also a dramatic canyon
+  | "valley";    // sunken terrain — also the default reading of "canyon"
 
 // A TerrainZone groups nodes that share ambient terrain.
 // It is a set-membership record, not a spatial polygon.
@@ -276,6 +335,35 @@ export interface Faction {
 - Every `edgeId` in an `EdgeTerrainTag` must reference an edge that exists in `WorldMap.edges`
 - A node should belong to at most one `Faction` (warn if duplicated)
 - A node may belong to multiple `TerrainZone`s (zones can overlap — valid)
+
+---
+
+### 3c. Classification Model — Tiers, Forks, and Boundary
+
+This section explains *why* Section 3a's and 3b's types are shaped the way they are. It exists because the original design discussion behind this app worked out a much richer classification system than the first written spec captured — that first pass over-corrected into "the generator never touches any of this nuance," which was wrong. This section is the corrected, permanent model. Read it before adding any new node category, subtype, or feature — it tells you which tier it belongs at.
+
+**The tiers:**
+
+- **Tier 1 — `NodeType`.** "What kind of place is this," full stop: `settlement | wilderness | poi`. Kept deliberately tiny and stable. A new Tier 1 value should be rare — most new ideas belong at a lower tier instead (see the heuristic below).
+- **Tier 1.5 — an internal fork.** Some Tier 1 types split into two mutually-exclusive sub-flavors, each with its *own* independent Tier 2 vocabulary — not just a tag, a genuinely different subsequent classification tree. Currently two: Wilderness forks into **Land | Water**; Settlement forks into **Civilian | Outpost**. The fork is never a field of its own — it's inferable from which subtype union `MapNode.subtype` belongs to (a `Biome` value implies the land branch, a `WaterFeature` value implies the water branch, and so on). Use this pattern sparingly; it's for cases where two flavors of the same Tier 1 type are different enough that they shouldn't share a Tier 2 list at all.
+- **Tier 2 — `NodeSubtype`.** One level of categorical specificity: `Biome`/`WaterFeature` under Wilderness, `CivilianScale`/`OutpostKind` under Settlement, `PoiKind` under Point of Interest. **This is the generator's floor** — see "What the generator may place," below.
+- **Tier 3+ — always user-authored, generator never touches it.** Finer detail under a Tier 2 value: architectural style under a civilian settlement (port, walled city — not yet modeled), specific ruin flavor under `PoiKind: ruin` (monument, tomb, tower, shrine — today's leftover `RuinSubtype` values), `grove` under `Biome: forest`/`jungle`. Nothing stops a future milestone from adding real Tier 3 types; when it does, the generator still must not assign them.
+
+**Boundary is not a tier at all — it's an orthogonal secondary marker.** Any node, regardless of its Tier 1/1.5/2 classification, can carry a `BoundaryMarker` recording that it sits at the edge of the generated region and *why*: `coastline | mountain_range | canyon_void | magical_barrier`. It answers a completely different question ("is this place at an edge, and why") than the node's primary classification ("what kind of place is this"). This is also why the old `mountain` `NodeType` is gone: a node near mountains is still a wilderness (or settlement, or poi) node that happens to carry a `mountain_range` boundary marker — it was never really a fifth peer of settlement/wilderness/ruin, it was this concept wearing a type's clothes. Political frontier/"border territory" is deliberately *not* a boundary reason — a settlement that ends up with any boundary marker already reads as a border settlement; a separate flag would be redundant.
+
+**`coastal` is a lone additive feature, not folded into Boundary or Biome.** It's a plain per-node boolean, independent of `boundary.reason === "coastline"` — a node can be flavorfully coastal without being at the map's literal edge, and vice versa. It exists as its own field (rather than joining `ElevationHint`) because it drives real mechanics — `sea_route` edge assignment — on every map, not just ones that opt into terrain zones.
+
+**Elevation/hilliness/canyon character lives on `TerrainZone.elevation` only** (Section 3b), not on individual nodes. `hills` and `canyon` were both considered as new node-level "terrain features" and folded into the existing `ElevationHint` axis instead once it became clear they were just naming what `rolling`/`elevated` and `valley`/`steep` already meant — one topography axis, not two overlapping ones. The tradeoff: elevation texture is only expressible on maps that use terrain zones at all (an optional extension layer), unlike `coastal`.
+
+**What the generator may place (as of this spec version):** any `NodeType`, any Tier 1.5 fork, any Tier 2 `NodeSubtype`, any `BoundaryMarker`, and — optionally, gated by a params toggle — `TerrainZone` extension data (Section 7 covers exactly how). **What the generator must never place:** Tier 3+ detail of any kind, and anything in `MapExtensions.factions`. Factions/political territory are out of scope for generation entirely, not just deferred for this pass — that's a deliberate, permanent line, not a temporary gap (see the concept doc's framing: political texture is the DM's voice, not the algorithm's).
+
+**Heuristic for classifying new detail, going forward:**
+
+Ask: *does this new value replace/refine what the parent classification already means, or does it independently layer on top regardless of the parent value?*
+
+- **Fork** — a strictly more specific version of *one particular* parent value, meaningless for its siblings. Belongs one tier deeper, scoped under that one parent. (`grove` only means anything under `forest`/`jungle`, not under `desert` — a Tier 3 fork under `forest`, not a Tier 2 `Biome` peer.)
+- **Additive feature** — a modifier that can combine with *any* (or most) sibling values without changing what the base classification means. A separate, orthogonal field, not a new enum peer. (`Boundary` is the flagship example — it applies across every Tier 1 type equally. `coastal` is the other.)
+- **Tier-1.5 fork** — the heavier-weight case described above. Use sparingly — it changes the whole subsequent classification tree, not just one field.
 
 ---
 
@@ -396,14 +484,22 @@ This is the only public export. Internally it calls the steps below in order. Ea
 
 ### Step 1 — `placeNodes(params, rng): MapNode[]`
 
+Per Section 3c, the generator now places a full Tier 1/1.5/2 classification per node, plus boundary markers — not just a bare `NodeType`.
+
 - Create a `gridCols × gridRows` logical grid
 - Divide the grid into spatial zones:
-  - **Center zone** (inner 50% by area): eligible for settlements, wilderness, ruins
-  - **Mid zone** (next ring out): eligible for wilderness, ruins, some mountain
-  - **Edge zone** (outer 1–2 rows/cols): eligible for mountain and a few wilderness
-- Fill zones by drawing from `nodeTypeBias` weights, but constrain each type to its eligible zones
+  - **Center zone** (inner 50% by area): eligible for all three Tier 1 types
+  - **Mid zone** (next ring out): eligible for all three Tier 1 types
+  - **Edge zone** (outer 1–2 rows/cols): eligible for all three Tier 1 types, but this is where `boundaryFraction` concentrates — see below
+- Fill zones by drawing from `nodeTypeBias` weights (`settlement | wilderness | poi`, three values now, not four), constrained to eligible zones exactly as before
+- For each placed node, resolve its Tier 1.5 fork and Tier 2 subtype:
+  - **Wilderness:** roll `rng() < params.wildernessWaterFraction` → water branch (pick a `WaterFeature`); else land branch (pick a `Biome`)
+  - **Settlement:** roll `rng() < params.settlementOutpostFraction` → outpost branch (pick an `OutpostKind`); else civilian branch (pick a `CivilianScale`, weighted toward `village`/`town` — `city` and especially `metropolis` should be rare, at most one or two `city`-or-above per map regardless of `targetNodeCount`)
+  - **Poi:** pick a `PoiKind` (`ruin | dungeon | lair | landmark`)
+- Boundary markers: for nodes in the edge zone, roll `rng() < params.boundaryFraction`; if true, attach a `BoundaryMarker` with a reason chosen from `coastline | mountain_range | canyon_void | magical_barrier` (uniform pick is an acceptable default — no evidence yet that a different weighting is needed). Mid-zone nodes may also occasionally receive one at a much lower rate to avoid a hard ring artifact at the zone boundary (mirrors the old `midZoneMountainAllowed` safety-margin idea).
+- `coastal`: set `true` on a node when it has `boundary.reason === "coastline"`, and independently (low probability) on other wilderness/settlement nodes to avoid every coastal-flavored node being confined to the boundary ring
 - Apply jitter: add `(rng() - 0.5) * 0.5` to each placed node's `gx` and `gy`
-- Generate placeholder label: `"Settlement-1"`, `"Wilderness-3"`, etc.
+- Generate placeholder label from the Tier 2 subtype where possible (e.g. `"Village-1"`, `"Forest-3"`), falling back to the Tier 1 type if no subtype was assigned
 
 ### Step 2 — `buildEdges(nodes, params, rng): MapEdge[]`
 
@@ -414,31 +510,42 @@ For each node A, find candidate neighbors within `1.6 * cellSize` radius. For ea
 4. Skip if either node already has more than `targetDegree` exits
    - `targetDegree` = `2 + Math.round(params.edgeDensity * 4)` → range 2–6
 5. Add edge with probability weighted by distance (closer = more likely)
-6. Assign `connectionType` based on node types at each end:
-   - mountain–mountain or mountain–wilderness: `"pass"`
+6. Assign `connectionType` based on the two nodes' classification (checked in this order):
+   - either node carries `boundary.reason === "mountain_range"`, and the other is that same reason or wilderness: `"pass"`
+   - either node is a wilderness node on the water branch: `"river_ford"`
+   - both nodes are `coastal` (or both belong to an `ocean`/`lake` `TerrainZone`, if Step 2.5 ran): `"sea_route"` — the generator may now place this (see Section 3c; it wasn't allowed to before)
    - settlement–settlement or settlement–wilderness: `"road"` (50% probability) or `"trail"`
-   - water–any: `"river_ford"` (generator never places sea_route or seasonal — those are user-set)
    - all others: `"trail"`
-7. Generator never sets: `travelDays`, `subtype`, `factionId`, or any extension data
+   - `seasonal` is still never generator-placed — there's no reliable signal yet for when a route should read as conditionally passable; that stays a manual, DM-authored call (`edge.notes` carries the condition)
+7. Generator never sets: `travelDays`, `factionId`, or `extensions.factions` — see Section 3c for exactly what's now in-bounds vs. permanently out
 
 After initial pass, run `isConnected()`. If false, run a connectivity repair pass:
 - Find isolated clusters
 - For each isolated cluster, find the nearest node in the main cluster and add a bridging edge in the correct compass direction (or closest available direction if exact is taken)
 
+### Step 2.5 — `generateTerrainZones(nodes, params, rng): TerrainZone[]` (optional)
+
+Only runs when `params.generateTerrainZones` is true; otherwise skipped entirely and `extensions.terrainZones` stays empty, exactly as before. When enabled:
+- Cluster nearby land-branch wilderness nodes (and any nodes within the cluster's rough footprint) that ended up with the same `Biome` into a `TerrainZone` of that `terrain`
+- A cluster of `coastal` nodes along one edge of the map may form an `ocean` (or `lake`, if fully enclosed) zone instead of/alongside a land biome zone
+- Pick an `ElevationHint` per zone (a simple, defensible default: `flatland` unless the zone overlaps a concentration of `mountain_range`-boundary nodes, in which case `elevated`/`steep`)
+- This is the only generator step that writes to `extensions` at all — it still never touches `extensions.factions`
+
 ### Step 3 — `markCheckRequired(nodes, edges, params, rng): MapEdge[]`
 
 Returns a new edges array (do not mutate). Mark an edge `checkRequired = true` if:
-- Both nodes are `mountain` type, OR
-- One node is `mountain` and one is `wilderness` AND `rng() < params.checkRequiredFraction`, OR
-- Neither node is mountain AND `rng() < params.checkRequiredFraction * 0.2` (rare dramatic routes)
+- Either node carries a `mountain_range` boundary marker and the other is also boundary-marked or wilderness, OR
+- One node is boundary-marked (any reason) and one is wilderness AND `rng() < params.checkRequiredFraction`, OR
+- Neither node is boundary-marked AND `rng() < params.checkRequiredFraction * 0.2` (rare dramatic routes)
 
 After marking, enforce constraint: every node must have at least one edge where `checkRequired = false`. If a node's only edges are all check-required, unmark the one with the lowest-difficulty neighbor.
 
 ### Step 4 — `assignCheckTypes(edges, rng): MapEdge[]`
 
 For each `checkRequired` edge, assign a `checkType` string based on `connectionType`:
-- `"pass"` (mountain): `"Athletics DC ${randInt(rng, 14, 18)}"`
+- `"pass"` (mountain range crossing): `"Athletics DC ${randInt(rng, 14, 18)}"`
 - `"river_ford"`: `"Athletics DC ${randInt(rng, 10, 14)}"`
+- `"sea_route"`: `"Athletics DC ${randInt(rng, 12, 16)}"` (vessel handling — new, since the generator can now place this connection type)
 - `"trail"` in difficult terrain: `"Survival DC ${randInt(rng, 10, 14)}"`
 - `"road"` (rare — washed out, broken): `"Athletics DC ${randInt(rng, 8, 12)}"`
 
@@ -450,9 +557,9 @@ return {
   name: "Unnamed Region",
   nodes,
   edges,
-  extensions: {},   // always empty from generator — user populates via extension layer UI
+  extensions,        // {} unless generateTerrainZones ran (Step 2.5) — factions is always untouched
   params,
-  algorithmVersion: ALGORITHM_VERSION,  // imported constant "1.0.0"
+  algorithmVersion: ALGORITHM_VERSION,  // imported constant "2.0.0" — bumped for this taxonomy rework (breaking data-model change, see Section 4)
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 }
@@ -484,7 +591,7 @@ These must never be violated. The validator checks all of them.
 1. **One direction per node** — no node has two outgoing edges with the same `direction`
 2. **No duplicate pairs** — only one edge between any two nodes (undirected check)
 3. **Fully connected** — every node reachable from every other node
-4. **Mountain placement** — no mountain node has `gx` and `gy` both in the inner 40% of the grid
+4. **Boundary placement** (was "Mountain placement") — no node with a `BoundaryMarker` (any reason) has `gx` and `gy` both in the inner 40% of the grid. Generalized from the old mountain-specific rule now that mountain is a boundary reason rather than a `NodeType` (Section 3c) — one invariant covers all four reasons instead of a mountain-only check.
 5. **Minimum exits** — every node has at least 2 edges (either direction counts)
 6. **No stranded check-required** — every node has at least one edge where `checkRequired = false`
 7. **Direction symmetry** — if edge A→B has direction N, no other edge from B has direction S (they'd overlap visually). Warn only, do not reject.
@@ -537,13 +644,13 @@ forest   → green  (#3B6D11 @ 0.15)
 swamp    → olive  (#5F6B2A @ 0.15)
 desert   → amber  (#BA7517 @ 0.12)
 plains   → yellow (#8A8A20 @ 0.10)
-hills    → brown  (#7A5C3A @ 0.12)
 tundra   → gray   (#888780 @ 0.12)
-coast    → teal   (#0F6E56 @ 0.12)
 jungle   → green  (#27500A @ 0.18)
+coast    → teal   (#0F6E56 @ 0.12)
 lake     → blue   (#185FA5 @ 0.15)
 ocean    → blue   (#042C53 @ 0.18)
 ```
+(`hills` is no longer a `TerrainType` value — it folded into `ElevationHint` per Section 3c. A zone's elevation, not its terrain color, now carries that texture.)
 
 **Layer 1 — Faction territory**
 Rendered when `WorldMap.extensions.factions` is non-empty and the layer is toggled on.
@@ -571,14 +678,25 @@ Check-required edges additionally get the existing dashed-orange overlay treatme
 Direction labels always render regardless of connection type.
 
 **Layer 3 — Nodes**
-Always visible. Node type determines shape; `water` nodes get a new shape:
+Always visible. `NodeType` and its Tier 1.5 fork (Section 3c) together determine shape:
 ```
-settlement → filled circle, large (r=11)
-wilderness → filled circle, small (r=7)
-mountain   → filled square (rx=2)
-ruin       → filled diamond
-water      → filled circle with inner ring (r=9, inner ring r=5, 1px stroke)
-             — the ring visually signals "this is a feature, not a settlement"
+settlement, civilian branch → filled circle, large (r=11)
+settlement, outpost branch  → filled circle, medium (r=8), double/dashed stroke
+                               — reads as "settlement-family but specialized," not a new shape vocabulary
+wilderness, land branch     → filled circle, small (r=7)
+wilderness, water branch    → filled circle with inner ring (r=9, inner ring r=5, 1px stroke)
+                               — the ring visually signals "this is a feature, not a settlement";
+                                 same shape the old "water" NodeType used, just a different discriminant now
+poi                          → filled diamond
+```
+(The old `mountain` shape — filled square — is gone entirely; a node "being mountainous" is now the `mountain_range` boundary marker below, not a base shape.)
+
+**Boundary marker badge** — layered on top of *any* node's base shape (Layer 3, drawn after the shape), independent of `NodeType`/fork, when `MapNode.boundary` is set:
+```
+mountain_range   → small ▲ glyph, upper-right of the shape (same glyph the "pass" edge style already uses, for visual consistency)
+coastline        → small 〜 (wave) glyph, upper-right
+canyon_void      → small ⌇ (jagged) glyph, upper-right
+magical_barrier  → small ✦ (sparkle) glyph, upper-right
 ```
 
 ### Layer toggle UI
@@ -1079,10 +1197,26 @@ Deliverables: `GeneratePanel.tsx`, full `mapStore.ts`, `libraryStore.ts`, `front
 
 Acceptance: sliders generate a new map; seed input and randomize button work; same seed + params = identical map (verified by generating twice); JSON export round-trips through import cleanly.
 
+### M4.5 — Taxonomy migration (types, boundary markers, validator, prototype, rendering)
+
+Inserted before M5 once M4 revealed the original spec had over-corrected "the generator can place this detail" into "the generator never touches subtype/water/extensions at all." Section 3c is the corrected model; this milestone is the mechanical migration to it — no new generation *variety* yet, just moving the existing mountain-fringe mechanic onto the new `BoundaryMarker` concept and getting every file compiling against the new types.
+
+Deliverables: `frontend/src/types/map.ts` and `types/extensions.ts` rewritten per Section 3a/3b/3c; `core/generator.ts` updated so the old mountain-edge placement logic becomes boundary-marker placement (`mountain_range` reason only, via the renamed `boundaryFraction`) — `nodeTypeBias.mountain`'s old share folds into `wilderness`; `core/validator.ts` invariant 4 generalized (boundary-placement, not mountain-specific); `core/prototypeMap.ts` migrated (every old `mountain`-type node becomes a wilderness node with a `mountain_range` boundary marker); `components/canvas/NodeShape.tsx`/`EdgeLine.tsx` updated for the new shape table and boundary badge (Section 10b); `core/exporter.ts`'s `toSVGString` updated to match; every existing test file updated for the new types/defaults.
+
+Acceptance: full test suite passes against the new types; prototype and freshly-generated maps are visually/structurally equivalent to pre-migration output (mountain fringe still reads the same way, just via a boundary marker); no wilderness/settlement/poi node has a Tier 2 `subtype` set yet by the generator (narrower version of today's status quo — still not this milestone's job); `ALGORITHM_VERSION` bumped to `2.0.0` (breaking data-model change); `npm run build` and `sam build` stay clean.
+
+### M4.6 — Generator gains physical-plausibility capabilities
+
+Deliverables: `core/generator.ts` gains real Tier 2 subtype assignment for all three Tier 1 types — `Biome`/`WaterFeature` via `wildernessWaterFraction`, `CivilianScale`/`OutpostKind` via `settlementOutpostFraction`, `PoiKind` for every poi node — plus `coastal` flag assignment, `sea_route` connection-type assignment, and the optional `generateTerrainZones` step (Section 7, Step 2.5). `core/names.ts` extended with name pools for the new subtypes where a placeholder label benefits from it.
+
+Acceptance: `generator.test.ts` asserts every wilderness/settlement/poi node gets a Tier 2 subtype (never anything deeper — Tier 3+ stays generator-untouched, Section 3c); `sea_route` never appears unless both endpoints are `coastal`; `extensions.terrainZones` is empty when `generateTerrainZones` is false and populated with valid zone data when true (existing extension invariants still hold); `extensions.factions` stays empty regardless — the generator never touches it, not even opt-in; same seed + params still reproduces identical output across every new dimension.
+
 ### M5 — Edit panels
 Deliverables: `NodePanel.tsx`, `EdgePanel.tsx`, `DirectionPicker.tsx`, `NodeTypeSelect.tsx`
 
 Acceptance: can rename a node inline, change its type, add an edge via direction picker, delete a node with confirmation; undo/redo works across at least 5 operations; validator violations surface in the UI.
+
+**Note (added after M4.5/M4.6 were inserted):** "change its type" now means the full Tier 1 + Tier 1.5 fork + Tier 2 subtype + optional `BoundaryMarker` — not just a bare `NodeType` dropdown. This closes the gap flagged earlier in the project (Section 11's View C never actually specified a subtype/boundary editing surface). Confirm the exact control layout when M5 starts; not designed yet.
 
 ### M6 — Library and export
 Deliverables: `LibraryPanel.tsx`, `ReferenceTableModal.tsx`, PNG/SVG/Markdown export
