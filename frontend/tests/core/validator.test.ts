@@ -8,10 +8,13 @@ const BASE_PARAMS: GenerationParams = {
   targetNodeCount: 4,
   gridCols: 10,
   gridRows: 8,
-  nodeTypeBias: { settlement: 0.18, wilderness: 0.45, mountain: 0.22, ruin: 0.15 },
+  nodeTypeBias: { settlement: 0.2, wilderness: 0.55, poi: 0.25 },
+  wildernessWaterFraction: 0.15,
+  settlementOutpostFraction: 0.25,
   checkRequiredFraction: 0.25,
   edgeDensity: 0.5,
-  mountainEdgeFraction: 0.7,
+  boundaryFraction: 0.7,
+  generateTerrainZones: false,
 };
 
 function node(overrides: Partial<MapNode> & Pick<MapNode, "id" | "label" | "type" | "gx" | "gy">): MapNode {
@@ -95,12 +98,12 @@ describe("validateMap", () => {
     expect(v?.nodeId).toBe("e");
   });
 
-  it("flags mountain-placement when a mountain sits in the inner 40% of the grid", () => {
+  it("flags boundary-placement when a boundary-marked node sits in the inner 40% of the grid", () => {
     const { nodes, edges } = validQuad();
     // gridCols=10, gridRows=8 (BASE_PARAMS) -> inner band is gx in [3,7], gy in [2.1,4.9]
-    nodes[1] = { ...nodes[1], type: "mountain", gx: 5, gy: 3.5 };
+    nodes[1] = { ...nodes[1], boundary: { reason: "mountain_range" }, gx: 5, gy: 3.5 };
     const violations = validateMap(baseMap(nodes, edges));
-    expect(violations.some((v) => v.rule === "mountain-placement")).toBe(true);
+    expect(violations.some((v) => v.rule === "boundary-placement")).toBe(true);
   });
 
   it("flags minimum-exits when a node has fewer than 2 edges", () => {

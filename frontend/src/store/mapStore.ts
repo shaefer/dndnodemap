@@ -14,10 +14,13 @@ export const DEFAULT_GENERATION_PARAMS: GenerationParams = {
   targetNodeCount: 49,
   gridCols: 10,
   gridRows: 8,
-  nodeTypeBias: { settlement: 0.18, wilderness: 0.45, mountain: 0.22, ruin: 0.15 },
+  nodeTypeBias: { settlement: 0.2, wilderness: 0.55, poi: 0.25 },
+  wildernessWaterFraction: 0.15,
+  settlementOutpostFraction: 0.25,
   checkRequiredFraction: 0.25,
   edgeDensity: 0.5,
-  mountainEdgeFraction: 0.7,
+  boundaryFraction: 0.7,
+  generateTerrainZones: false,
 };
 
 // The one sanctioned Math.random() use in the app (spec Section 4) — every

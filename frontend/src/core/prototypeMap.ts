@@ -1,4 +1,5 @@
 import type {
+  BoundaryMarker,
   CompassDir,
   ConnectionType,
   GenerationParams,
@@ -17,12 +18,32 @@ import { enforceNonCheckRequiredExit } from "./generator";
 // built from this data, and duplicating the transcription in two places would
 // just invite drift.
 
+// Raw transcription type — kept as the source HTML's own vocabulary
+// (including "mountain"/"ruin", which no longer exist as NodeType values)
+// purely for transcription readability. resolveType() below maps each to its
+// current Tier 1 type + BoundaryMarker (spec Section 3c): "mountain" becomes
+// a wilderness node with a mountain_range boundary marker, "ruin" becomes
+// "poi". This is a data migration, not new generation variety — no node here
+// gets a Tier 2 subtype yet (that's M4.6).
+type RawType = "settlement" | "wilderness" | "mountain" | "ruin";
+
 interface RawNode {
   id: number;
   label: string;
-  type: NodeType;
+  type: RawType;
   gx: number;
   gy: number;
+}
+
+function resolveType(rawType: RawType): { type: NodeType; boundary?: BoundaryMarker } {
+  switch (rawType) {
+    case "mountain":
+      return { type: "wilderness", boundary: { reason: "mountain_range" } };
+    case "ruin":
+      return { type: "poi" };
+    default:
+      return { type: rawType };
+  }
 }
 
 type RawEdge = [number, number, CompassDir] | [number, number, CompassDir, true, string];
@@ -138,15 +159,19 @@ const RAW_EDGES: RawEdge[] = [
   [30, 33, "E", true, "Athletics DC 18"],
 ];
 
-function connectionTypeFor(a: NodeType, b: NodeType): ConnectionType {
-  if (a === "water" || b === "water") return "river_ford";
+// Mirrors generator.ts's connectionTypeFor, minus the rng-based 50/50 road
+// roll (this is a fixed fixture, not a generation — the source data always
+// reads as a maintained road between settlements).
+function connectionTypeFor(a: MapNode, b: MapNode): ConnectionType {
+  const aBoundary = a.boundary?.reason === "mountain_range";
+  const bBoundary = b.boundary?.reason === "mountain_range";
   const isMountainPair =
-    (a === "mountain" && (b === "mountain" || b === "wilderness")) ||
-    (b === "mountain" && (a === "mountain" || a === "wilderness"));
+    (aBoundary && (bBoundary || b.type === "wilderness")) ||
+    (bBoundary && (aBoundary || a.type === "wilderness"));
   if (isMountainPair) return "pass";
   const isSettlementPair =
-    (a === "settlement" && (b === "settlement" || b === "wilderness")) ||
-    (b === "settlement" && (a === "settlement" || a === "wilderness"));
+    (a.type === "settlement" && (b.type === "settlement" || b.type === "wilderness")) ||
+    (b.type === "settlement" && (a.type === "settlement" || a.type === "wilderness"));
   if (isSettlementPair) return "road";
   return "trail";
 }
@@ -154,20 +179,25 @@ function connectionTypeFor(a: NodeType, b: NodeType): ConnectionType {
 export function buildPrototypeMap(): WorldMap {
   const nodeIds = RAW_NODES.map((n) => `prototype-node-${n.id}`);
 
-  const nodes: MapNode[] = RAW_NODES.map((n) => ({
-    id: nodeIds[n.id],
-    label: n.label,
-    type: n.type,
-    gx: n.gx,
-    gy: n.gy,
-  }));
+  const nodes: MapNode[] = RAW_NODES.map((n) => {
+    const { type, boundary } = resolveType(n.type);
+    return {
+      id: nodeIds[n.id],
+      label: n.label,
+      type,
+      ...(boundary ? { boundary } : {}),
+      gx: n.gx,
+      gy: n.gy,
+    };
+  });
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
 
   const rawEdges: MapEdge[] = RAW_EDGES.map(([a, b, direction, check, checkType], i) => ({
     id: `prototype-edge-${i}`,
     fromId: nodeIds[a],
     toId: nodeIds[b],
     direction,
-    connectionType: connectionTypeFor(RAW_NODES[a].type, RAW_NODES[b].type),
+    connectionType: connectionTypeFor(nodeById.get(nodeIds[a])!, nodeById.get(nodeIds[b])!),
     checkRequired: check === true,
     ...(checkType ? { checkType } : {}),
   }));
@@ -183,10 +213,13 @@ export function buildPrototypeMap(): WorldMap {
     targetNodeCount: nodes.length,
     gridCols: PROTOTYPE_GRID_COLS,
     gridRows: PROTOTYPE_GRID_ROWS,
-    nodeTypeBias: { settlement: 0.18, wilderness: 0.45, mountain: 0.22, ruin: 0.15 },
+    nodeTypeBias: { settlement: 0.2, wilderness: 0.55, poi: 0.25 },
+    wildernessWaterFraction: 0.15,
+    settlementOutpostFraction: 0.25,
     checkRequiredFraction: 0.25,
     edgeDensity: 0.5,
-    mountainEdgeFraction: 0.7,
+    boundaryFraction: 0.7,
+    generateTerrainZones: false,
   };
 
   const now = new Date().toISOString();

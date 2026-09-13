@@ -78,18 +78,34 @@ const MARGIN = { l: 60, r: 60, t: 40, b: 40 };
 const TYPE_FILL: Record<NodeType, string> = {
   settlement: "#5DCAA5",
   wilderness: "#85B7EB",
-  mountain: "#B4B2A9",
-  ruin: "#EF9F27",
-  water: "#7EC8E3",
+  poi: "#EF9F27",
 };
 const TYPE_STROKE: Record<NodeType, string> = {
   settlement: "#0F6E56",
   wilderness: "#185FA5",
-  mountain: "#5F5E5A",
-  ruin: "#BA7517",
-  water: "#0F6E56",
+  poi: "#BA7517",
 };
-const RADIUS: Record<NodeType, number> = { settlement: 11, wilderness: 7, mountain: 9, ruin: 10, water: 9 };
+
+// Tier 2 subtype unions used only to infer which Tier 1.5 fork a node is on
+// (spec Section 3c — the fork is never its own field). Mirrors
+// components/canvas/NodeShape.tsx.
+const WATER_FEATURES = new Set(["pond", "lake", "river_crossing", "hot_spring", "waterfall", "delta"]);
+const OUTPOST_KINDS = new Set(["monastery", "military_fort", "trading_post", "mining_camp", "waystation"]);
+
+function isWaterBranch(node: MapNode): boolean {
+  return node.type === "wilderness" && !!node.subtype && WATER_FEATURES.has(node.subtype);
+}
+
+function isOutpostBranch(node: MapNode): boolean {
+  return node.type === "settlement" && !!node.subtype && OUTPOST_KINDS.has(node.subtype);
+}
+
+const BOUNDARY_GLYPH: Record<string, string> = {
+  mountain_range: "▲",
+  coastline: "〜",
+  canyon_void: "⌇",
+  magical_barrier: "✦",
+};
 
 const CONNECTION_STYLE: Record<ConnectionType, { stroke: string; width: number; dash?: string; opacity: number }> = {
   road: { stroke: "#888780", width: 1.5, opacity: 1 },
@@ -105,24 +121,37 @@ function escapeXml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function nodeShapeSvg(node: MapNode, x: number, y: number): string {
+// Returns both the shape markup and its radius (label offset depends on it,
+// and radius now varies by Tier 1.5 fork, not just NodeType).
+function nodeShapeSvg(node: MapNode, x: number, y: number): { svg: string; r: number } {
   const fill = TYPE_FILL[node.type];
   const stroke = TYPE_STROKE[node.type];
-  const r = RADIUS[node.type];
-  switch (node.type) {
-    case "settlement":
-    case "wilderness":
-      return `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="1.8" />`;
-    case "mountain":
-      return `<rect x="${x - r}" y="${y - r}" width="${r * 2}" height="${r * 2}" rx="2" fill="${fill}" stroke="${stroke}" stroke-width="1.5" />`;
-    case "ruin":
-      return `<polygon points="${x},${y - r} ${x + r},${y} ${x},${y + r} ${x - r},${y}" fill="${fill}" stroke="${stroke}" stroke-width="1.8" />`;
-    case "water":
-      return (
-        `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="1" />` +
-        `<circle cx="${x}" cy="${y}" r="5" fill="none" stroke="${stroke}" stroke-width="1" />`
-      );
+
+  if (node.type === "settlement") {
+    const outpost = isOutpostBranch(node);
+    const r = outpost ? 8 : 11;
+    const dash = outpost ? ` stroke-dasharray="3,2"` : "";
+    return { svg: `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="1.8"${dash} />`, r };
   }
+  if (node.type === "wilderness") {
+    if (isWaterBranch(node)) {
+      const r = 9;
+      return {
+        svg:
+          `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="1" />` +
+          `<circle cx="${x}" cy="${y}" r="5" fill="none" stroke="${stroke}" stroke-width="1" />`,
+        r,
+      };
+    }
+    const r = 7;
+    return { svg: `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="1.8" />`, r };
+  }
+  // poi
+  const r = 10;
+  return {
+    svg: `<polygon points="${x},${y - r} ${x + r},${y} ${x},${y + r} ${x - r},${y}" fill="${fill}" stroke="${stroke}" stroke-width="1.8" />`,
+    r,
+  };
 }
 
 export function toSVGString(map: WorldMap, scale = 1): string {
@@ -180,8 +209,14 @@ export function toSVGString(map: WorldMap, scale = 1): string {
   for (const node of map.nodes) {
     const x = nx(node);
     const y = ny(node);
-    const r = RADIUS[node.type];
-    parts.push(nodeShapeSvg(node, x, y));
+    const { svg, r } = nodeShapeSvg(node, x, y);
+    parts.push(svg);
+    if (node.boundary) {
+      const stroke = TYPE_STROKE[node.type];
+      parts.push(
+        `<text x="${x + r * 0.7}" y="${y - r * 0.7}" text-anchor="middle" font-size="9" fill="${stroke}">${BOUNDARY_GLYPH[node.boundary.reason]}</text>`
+      );
+    }
     parts.push(
       `<text x="${x}" y="${y + r + 12}" text-anchor="middle" font-size="10" font-weight="500" fill="#444">${escapeXml(node.label)}</text>`
     );

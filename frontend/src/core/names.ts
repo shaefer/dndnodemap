@@ -6,6 +6,10 @@ import { randPick } from "./rng";
 // the generator uses placeholder labels ("Settlement-1") per spec Section 7,
 // Step 1. This exists as a reusable resource for a future "randomize name"
 // feature during editing (Section 11, View C).
+// The old "mountain" and "ruin" NodeType keys are gone (spec Section 3c) —
+// their name pools folded into wilderness (mountain-flavored nodes are now
+// wilderness nodes with a mountain_range boundary marker) and poi (ruin
+// renamed to poi) respectively.
 const NAMES_BY_TYPE: Record<NodeType, readonly string[]> = {
   settlement: [
     "Ashford", "Millhaven", "Thornwall", "Duskhollow", "Briargate",
@@ -16,21 +20,23 @@ const NAMES_BY_TYPE: Record<NodeType, readonly string[]> = {
     "Fen Run", "Silver Moor", "Copperwood", "Reed Marshes", "The Veldtway",
     "Longstride", "Drifting Loch", "Briar Heath", "Greywood Fen", "East Run",
     "Dunmore Ford", "Pale Crossing",
-  ],
-  mountain: [
     "The Shelf", "Scar Ridge", "High Notch", "Greypass", "Stoneback",
     "Rimfall", "Peakwatch", "Crownspire", "Ironwall Ridge", "The Far Spur",
     "Highfell East", "Tumble Pass",
   ],
-  ruin: [
+  poi: [
     "Old Barrow", "Wraith Hollow", "Sunken Spire", "Gloomgate", "The Black Mere",
     "Ashgrave", "Warden's Last", "Crumbled Keep", "Oathstone", "The Deep Fane",
   ],
-  water: [
-    "Miller's Ford", "Glasswater Pond", "Thistlemere", "The Hush Falls",
-    "Cinder Spring", "Otter's Crossing", "Widow's Ford", "Stillwater Pond",
-  ],
 };
+
+// Water-feature-flavored names, for once the Wilderness water fork is placed
+// by the generator (M4.6). Not keyed by NodeType since water is a Tier 1.5
+// fork, not its own type.
+export const WATER_FEATURE_NAMES: readonly string[] = [
+  "Miller's Ford", "Glasswater Pond", "Thistlemere", "The Hush Falls",
+  "Cinder Spring", "Otter's Crossing", "Widow's Ford", "Stillwater Pond",
+];
 
 export function namesForType(type: NodeType): readonly string[] {
   return NAMES_BY_TYPE[type];

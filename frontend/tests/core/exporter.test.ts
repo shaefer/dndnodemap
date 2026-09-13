@@ -25,7 +25,7 @@ describe("toMarkdown", () => {
       expect(markdown).toContain(node.label);
     }
     expect(markdown).toContain("Settlement");
-    expect(markdown).toContain("Mountain");
+    expect(markdown).toContain("Poi");
   });
 
   it("marks check-required exits with a warning glyph", () => {
@@ -70,11 +70,11 @@ describe("toSVGString", () => {
     }
   });
 
-  it("draws a mountain rect and a ruin polygon for at least one node of each", () => {
+  it("draws a poi diamond and a mountain_range boundary badge for at least one node of each", () => {
     const svg = toSVGString(map);
-    expect(map.nodes.some((n) => n.type === "mountain")).toBe(true);
-    expect(map.nodes.some((n) => n.type === "ruin")).toBe(true);
-    expect(svg).toContain("<rect");
+    expect(map.nodes.some((n) => n.type === "poi")).toBe(true);
+    expect(map.nodes.some((n) => n.boundary?.reason === "mountain_range")).toBe(true);
     expect(svg).toContain("<polygon");
+    expect(svg).toContain("▲"); // mountain_range boundary badge glyph
   });
 });

@@ -1,4 +1,5 @@
 import type {
+  BoundaryMarker,
   CompassDir,
   ConnectionType,
   GenerationParams,
@@ -12,8 +13,14 @@ import { freeDirections, usedDirections } from "./graph";
 import { makeRng, randInt, type RngFn } from "./rng";
 
 // Bump (minor) whenever the RNG call sequence below changes such that a given
-// seed would produce different output. See spec Section 4.
-export const ALGORITHM_VERSION = "1.0.0";
+// seed would produce different output. Major version = breaking change to the
+// data model. See spec Section 4.
+//
+// 2.0.0: taxonomy rework (spec Section 3c) — NodeType shrank to
+// settlement/wilderness/poi; the old "mountain" NodeType became a
+// BoundaryMarker (mountain_range reason) and the old "water" NodeType became
+// a Wilderness-internal fork. Breaking data-model change, not a minor bump.
+export const ALGORITHM_VERSION = "2.0.0";
 
 type Zone = "center" | "mid" | "edge";
 
@@ -25,90 +32,40 @@ function classifyZone(col: number, row: number, gridCols: number, gridRows: numb
     col < edgeBand || row < edgeBand || col >= gridCols - edgeBand || row >= gridRows - edgeBand;
   if (inEdgeBand) return "edge";
 
-  // Center zone = "inner 50% by area" (Section 7, Step 1) — a centered band
-  // covering 50% of the area means each axis spans sqrt(0.5) ≈ 70.7% of the
-  // grid, i.e. roughly the inner [0.15, 0.85] fraction. This is deliberately
-  // a *much* wider band than invariant 4's inner-40% mountain-forbidden zone
-  // (see checkMountainPlacement in validator.ts / midZoneMountainAllowed
-  // below) — those are two unrelated thresholds for two different purposes.
+  // Center zone = "inner 50% by area" — a centered band covering 50% of the
+  // area means each axis spans sqrt(0.5) ≈ 70.7% of the grid, i.e. roughly
+  // the inner [0.15, 0.85] fraction. All three Tier 1 types are eligible in
+  // every zone now (spec Section 7) — zone only affects boundary-marker
+  // probability, not type eligibility — so this classification exists solely
+  // to gate where a BoundaryMarker may be placed (invariant 4: no
+  // boundary-marked node in the inner 40% band, i.e. the [0.3, 0.7] fraction
+  // — a distinct, narrower threshold from this 50%-by-area band).
   const fx = gridCols <= 1 ? 0.5 : col / (gridCols - 1);
   const fy = gridRows <= 1 ? 0.5 : row / (gridRows - 1);
   const inCenterBand = fx >= 0.15 && fx <= 0.85 && fy >= 0.15 && fy <= 0.85;
   return inCenterBand ? "center" : "mid";
 }
 
-// Mid-zone mountains are kept a safe margin outside the invariant-4 band
-// (inner 40%, i.e. the [0.3, 0.7] fraction on both axes) so generator jitter
-// can never push one back into forbidden territory.
-function midZoneMountainAllowed(col: number, row: number, gridCols: number, gridRows: number): boolean {
+// Mid-zone boundary markers are kept a safe margin outside the invariant-4
+// band (inner 40%, i.e. the [0.3, 0.7] fraction on both axes) so generator
+// jitter can never push one back into forbidden territory.
+function midZoneBoundaryAllowed(col: number, row: number, gridCols: number, gridRows: number): boolean {
   const fx = gridCols <= 1 ? 0.5 : col / (gridCols - 1);
   const fy = gridRows <= 1 ? 0.5 : row / (gridRows - 1);
   return fx < 0.2 || fx > 0.8 || fy < 0.2 || fy > 0.8;
 }
 
-const CENTER_ZONE_TYPES: NodeType[] = ["settlement", "wilderness", "ruin"];
-const MID_ZONE_TYPES: NodeType[] = ["wilderness", "ruin", "mountain"];
+// Mid-zone boundary markers occur at a much lower rate than edge-zone ones —
+// boundaryFraction is "how much of the edge concentrates a marker," not an
+// independent per-cell probability everywhere.
+const MID_ZONE_BOUNDARY_DAMPING = 0.15;
 
-function weightFor(type: NodeType, bias: GenerationParams["nodeTypeBias"]): number {
-  switch (type) {
-    case "settlement": return bias.settlement;
-    case "wilderness": return bias.wilderness;
-    case "mountain": return bias.mountain;
-    case "ruin": return bias.ruin;
-    case "water": return 0; // never generator-placed — see Section 3a doc comment
-  }
-}
-
-// Weighted pick among an eligible subset, renormalizing nodeTypeBias over just
-// those types (spec Section 7, Step 1: "constrain each type to its eligible zones").
-function pickEligibleType(eligible: NodeType[], bias: GenerationParams["nodeTypeBias"], rng: RngFn): NodeType {
-  const weights = eligible.map((t) => weightFor(t, bias));
-  const total = weights.reduce((a, b) => a + b, 0);
-  if (total <= 0) return eligible[0];
-  let roll = rng() * total;
-  for (let i = 0; i < eligible.length; i++) {
-    roll -= weights[i];
-    if (roll <= 0) return eligible[i];
-  }
-  return eligible[eligible.length - 1];
-}
-
-function pickTypeForCell(
-  zone: Zone,
-  col: number,
-  row: number,
-  params: GenerationParams,
-  rng: RngFn,
-  mountainAllowed: boolean,
-  forceSettlement: boolean
-): NodeType {
-  if (zone === "center") {
-    // Settlement is the only type restricted to center-zone-only placement,
-    // and that zone is a minority of the grid — left to organic weighted
-    // rolls, wilderness/ruin's competing weight structurally starves it well
-    // below nodeTypeBias.settlement's global share. forceSettlement (set by
-    // placeNodes once remaining center cells run low relative to the
-    // remaining settlement quota) guarantees the budget is actually met.
-    if (forceSettlement) return "settlement";
-    return pickEligibleType(CENTER_ZONE_TYPES, params.nodeTypeBias, rng);
-  }
-  if (zone === "edge") {
-    if (!mountainAllowed) return "wilderness";
-    // mountainEdgeFraction (Section 3a, "Containment") controls how much of
-    // the *mountain budget* (see placeNodes) concentrates on the perimeter
-    // vs. spilling into the mid zone, not an independent per-cell roll —
-    // otherwise it and nodeTypeBias.mountain fight each other (a 1-cell-thick
-    // edge ring is already ~40% of a modest grid's area).
-    return rng() < params.mountainEdgeFraction ? "mountain" : "wilderness";
-  }
-  // mid zone
-  const eligible = mountainAllowed ? MID_ZONE_TYPES : (["wilderness", "ruin"] as NodeType[]);
-  const type = pickEligibleType(eligible, params.nodeTypeBias, rng);
-  if (type === "mountain" && !midZoneMountainAllowed(col, row, params.gridCols, params.gridRows)) {
-    return pickEligibleType(["wilderness", "ruin"], params.nodeTypeBias, rng);
-  }
-  return type;
-}
+// M4.5 migrates the old mountain-only edge mechanic onto BoundaryMarker
+// as-is — every marker placed today is a mountain_range. M4.6 adds real
+// variety (coastline/canyon_void/magical_barrier) once terrain/coastal
+// awareness exists; picking uniformly among all four before that context
+// exists would just be noise.
+const ONLY_BOUNDARY_REASON = "mountain_range" as const;
 
 function placeNodes(params: GenerationParams, rng: RngFn): MapNode[] {
   const cells: { col: number; row: number }[] = [];
@@ -127,67 +84,58 @@ function placeNodes(params: GenerationParams, rng: RngFn): MapNode[] {
 
   const nodeCount = Math.min(params.targetNodeCount, cells.length);
   const chosen = cells.slice(0, nodeCount);
-
-  // Mountain count is capped at nodeTypeBias.mountain's global share (the
-  // "budget"). Edge-zone cells are processed first so mountainEdgeFraction
-  // gets first claim on that budget (containment), with any remainder
-  // available to mid-zone cells afterward. Center-zone cells never place
-  // mountains, so their processing order relative to the budget is moot.
   const zoned = chosen.map((cell) => ({
     ...cell,
     zone: classifyZone(cell.col, cell.row, params.gridCols, params.gridRows),
   }));
-  const zonePriority: Record<Zone, number> = { edge: 0, mid: 1, center: 2 };
-  const ordered = [...zoned].sort((a, b) => zonePriority[a.zone] - zonePriority[b.zone]);
 
-  const totalBiasWeight =
-    params.nodeTypeBias.settlement +
-    params.nodeTypeBias.wilderness +
-    params.nodeTypeBias.mountain +
-    params.nodeTypeBias.ruin;
-  const mountainBudget =
-    totalBiasWeight > 0
-      ? Math.round(nodeCount * (params.nodeTypeBias.mountain / totalBiasWeight))
-      : 0;
-  let mountainCount = 0;
+  // Exact-budget type assignment: since all three Tier 1 types are eligible
+  // in every zone now (spec Section 7 — zone only gates BoundaryMarker
+  // placement, not type eligibility), the target nodeTypeBias split can be
+  // hit exactly with a shuffled bag instead of the old per-zone
+  // eligibility-plus-force-fill machinery that a 4-zone-restricted type list
+  // used to need.
+  const bias = params.nodeTypeBias;
+  const totalWeight = bias.settlement + bias.wilderness + bias.poi;
+  const settlementBudget = totalWeight > 0 ? Math.round(nodeCount * (bias.settlement / totalWeight)) : 0;
+  const wildernessBudget = totalWeight > 0 ? Math.round(nodeCount * (bias.wilderness / totalWeight)) : 0;
+  const poiBudget = Math.max(0, nodeCount - settlementBudget - wildernessBudget);
 
-  // Settlement budget, clamped to however many center cells actually exist —
-  // can't force more settlements than there is room for.
-  const centerCellCount = zoned.filter((c) => c.zone === "center").length;
-  const settlementBudget = Math.min(
-    centerCellCount,
-    totalBiasWeight > 0 ? Math.round(nodeCount * (params.nodeTypeBias.settlement / totalBiasWeight)) : 0
-  );
-  let settlementCount = 0;
-  let centerCellsLeft = centerCellCount;
+  const bag: NodeType[] = [
+    ...Array(settlementBudget).fill("settlement" as NodeType),
+    ...Array(wildernessBudget).fill("wilderness" as NodeType),
+    ...Array(poiBudget).fill("poi" as NodeType),
+  ];
+  for (let i = bag.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [bag[i], bag[j]] = [bag[j], bag[i]];
+  }
 
-  const counters: Record<NodeType, number> = { settlement: 0, wilderness: 0, mountain: 0, ruin: 0, water: 0 };
+  const counters: Record<NodeType, number> = { settlement: 0, wilderness: 0, poi: 0 };
   const typeLabel: Record<NodeType, string> = {
     settlement: "Settlement",
     wilderness: "Wilderness",
-    mountain: "Mountain",
-    ruin: "Ruin",
-    water: "Water",
+    poi: "Poi",
   };
 
-  const placed = ordered.map(({ col, row, zone }) => {
-    const mountainAllowed = mountainCount < mountainBudget;
-    let forceSettlement = false;
-    if (zone === "center") {
-      const settlementRemaining = settlementBudget - settlementCount;
-      forceSettlement = settlementRemaining > 0 && settlementRemaining >= centerCellsLeft;
-      centerCellsLeft--;
-    }
-    const type = pickTypeForCell(zone, col, row, params, rng, mountainAllowed, forceSettlement);
-    if (type === "mountain") mountainCount++;
-    if (type === "settlement") settlementCount++;
+  const placed = zoned.map((cell, i) => {
+    const type = bag[i] ?? "wilderness";
     counters[type] += 1;
-    const gx = col + (rng() - 0.5) * 0.5;
-    const gy = row + (rng() - 0.5) * 0.5;
+
+    let boundary: BoundaryMarker | undefined;
+    if (cell.zone === "edge") {
+      if (rng() < params.boundaryFraction) boundary = { reason: ONLY_BOUNDARY_REASON };
+    } else if (cell.zone === "mid" && midZoneBoundaryAllowed(cell.col, cell.row, params.gridCols, params.gridRows)) {
+      if (rng() < params.boundaryFraction * MID_ZONE_BOUNDARY_DAMPING) boundary = { reason: ONLY_BOUNDARY_REASON };
+    }
+
+    const gx = cell.col + (rng() - 0.5) * 0.5;
+    const gy = cell.row + (rng() - 0.5) * 0.5;
     return {
       id: crypto.randomUUID(),
       label: `${typeLabel[type]}-${counters[type]}`,
       type,
+      ...(boundary ? { boundary } : {}),
       gx,
       gy,
     };
@@ -198,16 +146,19 @@ function placeNodes(params: GenerationParams, rng: RngFn): MapNode[] {
 
 // --- Step 2: edges -----------------------------------------------------------
 
-function connectionTypeFor(a: NodeType, b: NodeType, rng: RngFn): ConnectionType {
-  if (a === "water" || b === "water") return "river_ford";
+function connectionTypeFor(a: MapNode, b: MapNode, rng: RngFn): ConnectionType {
+  const aBoundary = a.boundary?.reason === "mountain_range";
+  const bBoundary = b.boundary?.reason === "mountain_range";
   const isMountainPair =
-    (a === "mountain" && (b === "mountain" || b === "wilderness")) ||
-    (b === "mountain" && (a === "mountain" || a === "wilderness"));
+    (aBoundary && (bBoundary || b.type === "wilderness")) ||
+    (bBoundary && (aBoundary || a.type === "wilderness"));
   if (isMountainPair) return "pass";
+
   const isSettlementPair =
-    (a === "settlement" && (b === "settlement" || b === "wilderness")) ||
-    (b === "settlement" && (a === "settlement" || a === "wilderness"));
+    (a.type === "settlement" && (b.type === "settlement" || b.type === "wilderness")) ||
+    (b.type === "settlement" && (a.type === "settlement" || a.type === "wilderness"));
   if (isSettlementPair) return rng() < 0.5 ? "road" : "trail";
+
   return "trail";
 }
 
@@ -273,7 +224,7 @@ function buildEdges(nodes: MapNode[], params: GenerationParams, rng: RngFn): Map
         fromId: a.id,
         toId: b.id,
         direction,
-        connectionType: connectionTypeFor(a.type, b.type, rng),
+        connectionType: connectionTypeFor(a, b, rng),
         checkRequired: false,
       });
     }
@@ -289,6 +240,7 @@ function buildEdges(nodes: MapNode[], params: GenerationParams, rng: RngFn): Map
 // both ends and closest to the ideal geometric heading.
 function ensureMinimumDegree(nodes: MapNode[], edges: MapEdge[], rng: RngFn): MapEdge[] {
   const working = [...edges];
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
   for (const node of nodes) {
     let guard = 0;
     while (degreeOf(node.id, working) < 2 && guard < nodes.length) {
@@ -314,7 +266,7 @@ function ensureMinimumDegree(nodes: MapNode[], edges: MapEdge[], rng: RngFn): Ma
           fromId: node.id,
           toId: other.id,
           direction,
-          connectionType: connectionTypeFor(node.type, other.type, rng),
+          connectionType: connectionTypeFor(node, nodeById.get(other.id)!, rng),
           checkRequired: false,
         });
         added = true;
@@ -416,7 +368,7 @@ function repairConnectivity(
       fromId,
       toId,
       direction,
-      connectionType: connectionTypeFor(fromNode.type, toNode.type, rng),
+      connectionType: connectionTypeFor(fromNode, toNode, rng),
       checkRequired: false,
     });
 
@@ -468,16 +420,17 @@ function markCheckRequired(
   const marked = edges.map((edge) => {
     const a = nodeById.get(edge.fromId)!;
     const b = nodeById.get(edge.toId)!;
-    const bothMountain = a.type === "mountain" && b.type === "mountain";
-    const oneMountainOneWilderness =
-      (a.type === "mountain" && b.type === "wilderness") ||
-      (b.type === "mountain" && a.type === "wilderness");
-    const neitherMountain = a.type !== "mountain" && b.type !== "mountain";
+    const aBoundary = a.boundary !== undefined;
+    const bBoundary = b.boundary !== undefined;
+    const bothBoundary = aBoundary && bBoundary;
+    const oneBoundaryOneWilderness =
+      (aBoundary && b.type === "wilderness") || (bBoundary && a.type === "wilderness");
+    const neitherBoundary = !aBoundary && !bBoundary;
 
     let checkRequired = false;
-    if (bothMountain) checkRequired = true;
-    else if (oneMountainOneWilderness) checkRequired = rng() < params.checkRequiredFraction;
-    else if (neitherMountain) checkRequired = rng() < params.checkRequiredFraction * 0.2;
+    if (bothBoundary) checkRequired = true;
+    else if (oneBoundaryOneWilderness) checkRequired = rng() < params.checkRequiredFraction;
+    else if (neitherBoundary) checkRequired = rng() < params.checkRequiredFraction * 0.2;
 
     return { ...edge, checkRequired };
   });
@@ -491,6 +444,7 @@ function checkTypeFor(edge: MapEdge, rng: RngFn): string {
   switch (edge.connectionType) {
     case "pass": return `Athletics DC ${randInt(rng, 14, 18)}`;
     case "river_ford": return `Athletics DC ${randInt(rng, 10, 14)}`;
+    case "sea_route": return `Athletics DC ${randInt(rng, 12, 16)}`;
     case "trail": return `Survival DC ${randInt(rng, 10, 14)}`;
     case "road": return `Athletics DC ${randInt(rng, 8, 12)}`;
     default: return `Athletics DC ${randInt(rng, 10, 14)}`;

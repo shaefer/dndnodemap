@@ -65,18 +65,21 @@ function checkFullyConnected(nodes: MapNode[], edges: MapEdge[]): Violation[] {
   }));
 }
 
-// Invariant 4: no mountain node has gx and gy both in the inner 40% of the grid.
-function checkMountainPlacement(nodes: MapNode[], gridCols: number, gridRows: number): Violation[] {
+// Invariant 4 (was "mountain-placement"): no boundary-marked node — any
+// BoundaryReason — has gx and gy both in the inner 40% of the grid.
+// Generalized now that "mountain" is a BoundaryMarker rather than a NodeType
+// (spec Section 3c) — one check covers all four reasons.
+function checkBoundaryPlacement(nodes: MapNode[], gridCols: number, gridRows: number): Violation[] {
   const violations: Violation[] = [];
   for (const node of nodes) {
-    if (node.type !== "mountain") continue;
+    if (!node.boundary) continue;
     const fx = gridCols <= 1 ? 0.5 : node.gx / (gridCols - 1);
     const fy = gridRows <= 1 ? 0.5 : node.gy / (gridRows - 1);
     const inInner40 = fx >= 0.3 && fx <= 0.7 && fy >= 0.3 && fy <= 0.7;
     if (inInner40) {
       violations.push({
-        rule: "mountain-placement",
-        detail: `Mountain node "${node.label}" sits in the inner 40% of the grid.`,
+        rule: "boundary-placement",
+        detail: `Boundary-marked node "${node.label}" (${node.boundary.reason}) sits in the inner 40% of the grid.`,
         nodeId: node.id,
       });
     }
@@ -142,7 +145,7 @@ export function validateMap(map: WorldMap): Violation[] {
     ...checkOneDirectionPerNode(map.nodes, map.edges),
     ...checkNoDuplicatePairs(map.edges),
     ...checkFullyConnected(map.nodes, map.edges),
-    ...checkMountainPlacement(map.nodes, map.params.gridCols, map.params.gridRows),
+    ...checkBoundaryPlacement(map.nodes, map.params.gridCols, map.params.gridRows),
     ...checkMinimumExits(map.nodes, map.edges),
     ...checkNoStrandedCheckRequired(map.nodes, map.edges),
     ...checkDirectionSymmetry(map.nodes, map.edges),

@@ -36,8 +36,7 @@ function RangeRow({ label, min, max, step = 1, value, displayValue, onChange }: 
 const BIAS_LABELS: Record<keyof GenerationParams["nodeTypeBias"], string> = {
   settlement: "Settlements",
   wilderness: "Wilderness",
-  mountain: "Mountain",
-  ruin: "Ruins",
+  poi: "Points of Interest",
 };
 
 export function GeneratePanel() {
@@ -158,12 +157,12 @@ export function GeneratePanel() {
           onChange={(v) => updateDraftParam("checkRequiredFraction", v / 100)}
         />
         <RangeRow
-          label="Mountain containment (Open → Closed)"
+          label="Boundary containment (Open → Closed)"
           min={0}
           max={100}
-          value={Math.round(draftParams.mountainEdgeFraction * 100)}
-          displayValue={`${Math.round(draftParams.mountainEdgeFraction * 100)}%`}
-          onChange={(v) => updateDraftParam("mountainEdgeFraction", v / 100)}
+          value={Math.round(draftParams.boundaryFraction * 100)}
+          displayValue={`${Math.round(draftParams.boundaryFraction * 100)}%`}
+          onChange={(v) => updateDraftParam("boundaryFraction", v / 100)}
         />
       </div>
 

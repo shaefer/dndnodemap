@@ -1,9 +1,13 @@
-// The generator never reads or writes these types. The validator never requires
-// them. The renderer draws them when present and ignores them when absent. The
-// UI shows extension panels only when the map's `extensions` object contains data.
+// The generator never reads or writes TerrainZone/Faction directly except when
+// explicitly opted into via GenerationParams.generateTerrainZones (spec
+// Section 7, Step 2.5) — the validator never requires any of this. The
+// renderer draws it when present and ignores it when absent. The UI shows
+// extension panels only when the map's `extensions` object contains data.
+// Faction data is never generator-written, opt-in or not — see spec Section 3c.
 //
 // The MapExtensions container lives on WorldMap so extensions round-trip cleanly
 // through JSON export without any migration logic.
+import type { Biome } from "./map"; // circular type-only import — erased at compile time, fine
 
 // The container — always present on WorldMap, all fields optional arrays
 export interface MapExtensions {
@@ -14,20 +18,29 @@ export interface MapExtensions {
 
 // --- Terrain ---
 
-// TerrainType: ambient regional conditions — large-scale, not a destination
-// lake / ocean obey the scale rule: large bodies that shape a region belong here.
-// Small visitable water features (ponds, river crossings) are water nodes instead.
+// TerrainType: ambient regional conditions — large-scale, not a destination.
+// Reuses Biome (map.ts) rather than re-listing it — a node's flavor and a
+// zone's ambient condition are the same vocabulary at different scope (spec
+// Section 3c). "coast" is valid here as a zone-wide ambient condition even
+// though it's a per-node boolean (MapNode.coastal) at node scope. lake /
+// ocean obey the scale rule: large bodies that shape a region belong here.
+// Small visitable water features (ponds, river crossings) are WaterFeature
+// nodes instead.
 export type TerrainType =
-  | "forest" | "swamp" | "desert" | "plains"
-  | "hills" | "tundra" | "coast" | "jungle"
+  | Biome
+  | "coast"
   | "lake" | "ocean";    // large water bodies — traversal requires sea_route edges
 
+// Elevation/topography texture — zone-scale only (spec Section 3c explains
+// why this isn't also a per-node field). hills and canyon fold in here rather
+// than being separate node-level features: hills is "rolling"/"elevated",
+// canyon is "valley" (or "steep" for a dramatic, cliff-walled gorge).
 export type ElevationHint =
   | "flatland"   // no notable elevation change
   | "rolling"    // gentle hills
   | "elevated"   // high ground, plateaus
-  | "steep"      // cliffs, dramatic drops
-  | "valley";    // sunken terrain
+  | "steep"      // cliffs, dramatic drops — also a dramatic canyon
+  | "valley";    // sunken terrain — also the default reading of "canyon"
 
 // A TerrainZone groups nodes that share ambient terrain.
 // It is a set-membership record, not a spatial polygon.
