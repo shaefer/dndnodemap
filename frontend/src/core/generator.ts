@@ -31,8 +31,13 @@ import { BIOMES, isWaterBranch } from "./taxonomy";
 // a Wilderness-internal fork. M4.5 landed the migration with no new
 // generation variety; M4.6 (still 2.0.0 — same data model, just the
 // generator getting smarter within it) adds real Tier 2 subtype placement,
-// coastal/sea_route, and optional terrain-zone generation.
-export const ALGORITHM_VERSION = "2.0.0";
+// coastal/sea_route, and optional terrain-zone generation. (In hindsight
+// M4.6 changed the RNG sequence enough to deserve its own minor bump and
+// didn't get one — not repeating that gap here.)
+// 2.1.0: M4.7.2 — wilderness land-branch Biome selection changed from a flat
+// uniform pick to a weighted pick against params.biomeMix (spec Section 7c).
+// Same seed now produces different biome placement than 2.0.0 did.
+export const ALGORITHM_VERSION = "2.1.0";
 
 type Zone = "center" | "mid" | "edge";
 
@@ -103,6 +108,22 @@ function pickCivilianScale(rng: RngFn, cityOrAboveCount: number): CivilianScale 
   return pool[pool.length - 1];
 }
 
+// Weighted pick against params.biomeMix (spec Section 7c) — replaces a flat
+// uniform pick so a generated map can read as regionally coherent. The
+// generator has no concept of "region presets"; it only ever reads whatever
+// weights are in biomeMix, exactly like every other param.
+function pickBiome(rng: RngFn, biomeMix: GenerationParams["biomeMix"]): Biome {
+  const weights = BIOME_VALUES.map((b) => biomeMix[b]);
+  const total = weights.reduce((a, b) => a + b, 0);
+  if (total <= 0) return BIOME_VALUES[0];
+  let roll = rng() * total;
+  for (let i = 0; i < BIOME_VALUES.length; i++) {
+    roll -= weights[i];
+    if (roll <= 0) return BIOME_VALUES[i];
+  }
+  return BIOME_VALUES[BIOME_VALUES.length - 1];
+}
+
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
@@ -166,7 +187,7 @@ function placeNodes(params: GenerationParams, rng: RngFn): MapNode[] {
       if (rng() < params.wildernessWaterFraction) {
         subtype = randPick(rng, WATER_FEATURE_VALUES);
       } else {
-        subtype = randPick(rng, BIOME_VALUES);
+        subtype = pickBiome(rng, params.biomeMix);
       }
     } else if (type === "settlement") {
       if (rng() < params.settlementOutpostFraction) {

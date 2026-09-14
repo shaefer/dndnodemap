@@ -135,6 +135,21 @@ export interface GenerationParams {
   wildernessWaterFraction: number;    // 0.0–1.0, default 0.15 — fraction of wilderness placements that are water (vs. land/biome)
   settlementOutpostFraction: number;  // 0.0–1.0, default 0.25 — fraction of settlement placements that are outposts (vs. civilian-scale)
 
+  // Biome frequency for the wilderness land branch (six values must sum to
+  // 1.0) — replaces a flat uniform pick so a generated map can read as
+  // regionally coherent (spec Section 7c: Region Presets is a UI/store
+  // convenience for populating this field with a curated combination; the
+  // generator itself has no preset concept, it just reads this like any
+  // other param).
+  biomeMix: {
+    forest: number;   // default 0.30
+    swamp: number;    // default 0.15
+    plains: number;   // default 0.25
+    desert: number;   // default 0.10
+    tundra: number;   // default 0.10
+    jungle: number;   // default 0.10
+  };
+
   // Difficulty / traversal
   checkRequiredFraction: number;  // 0.0–1.0, default 0.25
   edgeDensity: number;            // 0.0–1.0, default 0.5

@@ -11,6 +11,7 @@ const DEFAULT_PARAMS: GenerationParams = {
   nodeTypeBias: { settlement: 0.2, wilderness: 0.55, poi: 0.25 },
   wildernessWaterFraction: 0.15,
   settlementOutpostFraction: 0.25,
+  biomeMix: { forest: 0.3, swamp: 0.15, plains: 0.25, desert: 0.1, tundra: 0.1, jungle: 0.1 },
   checkRequiredFraction: 0.25,
   edgeDensity: 0.5,
   boundaryFraction: 0.7,
@@ -82,7 +83,7 @@ describe("generateMap", () => {
 
   it("sets the current algorithm version", () => {
     const map = generateMap(DEFAULT_PARAMS);
-    expect(map.algorithmVersion).toBe("2.0.0");
+    expect(map.algorithmVersion).toBe("2.1.0");
   });
 
   it("never assigns seasonal — that stays a manual, DM-authored call (Section 3c)", () => {
@@ -166,6 +167,22 @@ describe("generateMap", () => {
         }
       }
       expect(maxPairwiseDist).toBeLessThan(gridDiagonal * 0.6);
+    }
+  });
+
+  it("weights biome selection by biomeMix — a zero-weight biome never appears (M4.7.2)", () => {
+    const frostLike: GenerationParams["biomeMix"] = {
+      forest: 0.05,
+      swamp: 0.05,
+      plains: 0.2,
+      desert: 0.1,
+      tundra: 0.6,
+      jungle: 0, // must never appear
+    };
+    for (const seed of [1, 2, 3, 42, 999, 123456]) {
+      const map = generateMap({ ...DEFAULT_PARAMS, seed, biomeMix: frostLike, targetNodeCount: 80 });
+      expect(map.nodes.some((n) => n.subtype === "jungle")).toBe(false);
+      expect(map.nodes.some((n) => n.subtype === "tundra")).toBe(true); // dominant biome should show up
     }
   });
 });

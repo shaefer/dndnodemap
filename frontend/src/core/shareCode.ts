@@ -1,3 +1,4 @@
+import { REGION_PRESETS } from "./regionPresets";
 import type { GenerationParams } from "../types/map";
 
 // Encodes/decodes a GenerationParams object into a short, URL-safe "share
@@ -6,7 +7,11 @@ import type { GenerationParams } from "../types/map";
 // `seed` is already a field of GenerationParams, so there's no separate
 // "seed + hash of the rest" — this encodes the whole object, seed included.
 
-export const PARAMS_CODEC_VERSION = 1;
+// The current codec version encodeParams() emits. Bump whenever
+// GenerationParams's shape changes in a way the byte layout must reflect —
+// see DECODERS below for the "never break an old link" discipline this
+// enables.
+export const PARAMS_CODEC_VERSION = 2;
 
 export type DecodeResult =
   | { ok: true; params: GenerationParams }
@@ -16,33 +21,49 @@ function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
 
-// --- codec v1 ----------------------------------------------------------------
-// 15 bytes. See spec Section 13b for the full field-by-field table and the
-// reasoning behind exact-integer-percent vs. fixed-point encoding per field.
+function encodeSeed(bytes: Uint8Array, offset: number, params: GenerationParams): void {
+  const seed = clamp(Math.round(params.seed), 0, 4294967295);
+  bytes[offset] = (seed >>> 24) & 0xff;
+  bytes[offset + 1] = (seed >>> 16) & 0xff;
+  bytes[offset + 2] = (seed >>> 8) & 0xff;
+  bytes[offset + 3] = seed & 0xff;
+}
+
+function decodeSeed(bytes: Uint8Array, offset: number): number {
+  return ((bytes[offset] << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3]) >>> 0;
+}
+
+// nodeTypeBias: poi is derived, then all three are renormalized to sum to
+// exactly 1 — the same floating-point-drift guard rebalanceShares
+// (store/mapStore.ts) already uses, since independent per-field rounding can
+// otherwise leave the triple slightly off 1.0 (or, pathologically, push a
+// derived share below 0). biomeMix (codec v2+) uses the identical pattern
+// one dimension up: 5 of 6 values stored, the 6th derived the same way.
+function renormalizeTriple(a: number, b: number, c: number): [number, number, number] {
+  const clampedC = Math.max(0, c);
+  const sum = a + b + clampedC;
+  return sum > 0 ? [a / sum, b / sum, clampedC / sum] : [1 / 3, 1 / 3, 1 / 3];
+}
+
+// --- codec v1 ------------------------------------------------------------------
+// 15 bytes. Predates biomeMix (M4.7.2) — decodeV1 fills a sensible default
+// (Temperate Mixed's mix) so old links stay decodable under the current
+// GenerationParams shape. See spec Section 13b for the full field table.
 const V1_LENGTH = 15;
 
 function encodeV1(params: GenerationParams): Uint8Array {
   const bytes = new Uint8Array(V1_LENGTH);
-  bytes[0] = PARAMS_CODEC_VERSION;
-
-  const seed = clamp(Math.round(params.seed), 0, 4294967295);
-  bytes[1] = (seed >>> 24) & 0xff;
-  bytes[2] = (seed >>> 16) & 0xff;
-  bytes[3] = (seed >>> 8) & 0xff;
-  bytes[4] = seed & 0xff;
-
+  bytes[0] = 1;
+  encodeSeed(bytes, 1, params);
   bytes[5] = clamp(Math.round(params.targetNodeCount), 0, 255);
   bytes[6] = (clamp(Math.round(params.gridCols), 0, 15) & 0x0f) | ((clamp(Math.round(params.gridRows), 0, 15) & 0x0f) << 4);
-
   bytes[7] = clamp(Math.round(params.nodeTypeBias.settlement * 255), 0, 255);
   bytes[8] = clamp(Math.round(params.nodeTypeBias.wilderness * 255), 0, 255);
-
   bytes[9] = clamp(Math.round(params.edgeDensity * 100), 0, 100);
   bytes[10] = clamp(Math.round(params.checkRequiredFraction * 100), 0, 100);
   bytes[11] = clamp(Math.round(params.boundaryFraction * 100), 0, 100);
   bytes[12] = clamp(Math.round(params.wildernessWaterFraction * 100), 0, 100);
   bytes[13] = clamp(Math.round(params.settlementOutpostFraction * 100), 0, 100);
-
   bytes[14] = params.generateTerrainZones ? 1 : 0;
   return bytes;
 }
@@ -52,39 +73,74 @@ function decodeV1(bytes: Uint8Array): DecodeResult {
     return { ok: false, error: `Expected ${V1_LENGTH} bytes for codec v1, got ${bytes.length}.` };
   }
 
-  const seed = ((bytes[1] << 24) | (bytes[2] << 16) | (bytes[3] << 8) | bytes[4]) >>> 0;
-  const targetNodeCount = bytes[5];
-  const gridCols = bytes[6] & 0x0f;
-  const gridRows = (bytes[6] >> 4) & 0x0f;
-
-  // nodeTypeBias: poi is derived, then all three are renormalized to sum to
-  // exactly 1 — the same floating-point-drift guard rebalanceNodeTypeBias
-  // (store/mapStore.ts) already uses, since independent per-field rounding
-  // can otherwise leave the triple slightly off 1.0 (or, pathologically,
-  // push a derived poi share below 0).
-  const rawSettlement = bytes[7] / 255;
-  const rawWilderness = bytes[8] / 255;
-  const rawPoi = Math.max(0, 1 - rawSettlement - rawWilderness);
-  const biasSum = rawSettlement + rawWilderness + rawPoi;
-  const nodeTypeBias =
-    biasSum > 0
-      ? { settlement: rawSettlement / biasSum, wilderness: rawWilderness / biasSum, poi: rawPoi / biasSum }
-      : { settlement: 1 / 3, wilderness: 1 / 3, poi: 1 / 3 };
+  const [settlement, wilderness, poi] = renormalizeTriple(
+    bytes[7] / 255,
+    bytes[8] / 255,
+    1 - bytes[7] / 255 - bytes[8] / 255
+  );
 
   const params: GenerationParams = {
-    seed,
-    targetNodeCount,
-    gridCols,
-    gridRows,
-    nodeTypeBias,
+    seed: decodeSeed(bytes, 1),
+    targetNodeCount: bytes[5],
+    gridCols: bytes[6] & 0x0f,
+    gridRows: (bytes[6] >> 4) & 0x0f,
+    nodeTypeBias: { settlement, wilderness, poi },
     wildernessWaterFraction: bytes[12] / 100,
     settlementOutpostFraction: bytes[13] / 100,
     checkRequiredFraction: bytes[10] / 100,
     edgeDensity: bytes[9] / 100,
     boundaryFraction: bytes[11] / 100,
     generateTerrainZones: (bytes[14] & 1) === 1,
+    // Predates biomeMix (M4.7.2) — a link from before region presets existed
+    // gets the same baseline a fresh app load without one would have used.
+    biomeMix: { ...REGION_PRESETS.temperate_mixed.biomeMix },
   };
   return { ok: true, params };
+}
+
+// --- codec v2 ------------------------------------------------------------------
+// 20 bytes = v1's 15 + 5 for biomeMix (M4.7.2). See spec Section 13b.
+const V2_LENGTH = 20;
+
+function encodeV2(params: GenerationParams): Uint8Array {
+  const bytes = new Uint8Array(V2_LENGTH);
+  bytes.set(encodeV1(params).subarray(1), 1); // reuse v1's byte-1-through-14 layout verbatim
+  bytes[0] = 2;
+  bytes[15] = clamp(Math.round(params.biomeMix.forest * 255), 0, 255);
+  bytes[16] = clamp(Math.round(params.biomeMix.swamp * 255), 0, 255);
+  bytes[17] = clamp(Math.round(params.biomeMix.plains * 255), 0, 255);
+  bytes[18] = clamp(Math.round(params.biomeMix.desert * 255), 0, 255);
+  bytes[19] = clamp(Math.round(params.biomeMix.tundra * 255), 0, 255);
+  return bytes;
+}
+
+function decodeV2(bytes: Uint8Array): DecodeResult {
+  if (bytes.length !== V2_LENGTH) {
+    return { ok: false, error: `Expected ${V2_LENGTH} bytes for codec v2, got ${bytes.length}.` };
+  }
+  const v1Result = decodeV1(bytes.subarray(0, V1_LENGTH));
+  if (!v1Result.ok) return v1Result;
+
+  const forest = bytes[15] / 255;
+  const swamp = bytes[16] / 255;
+  const plains = bytes[17] / 255;
+  const desert = bytes[18] / 255;
+  const tundra = bytes[19] / 255;
+  const rawJungle = Math.max(0, 1 - forest - swamp - plains - desert - tundra);
+  const sum = forest + swamp + plains + desert + tundra + rawJungle;
+  const biomeMix =
+    sum > 0
+      ? {
+          forest: forest / sum,
+          swamp: swamp / sum,
+          plains: plains / sum,
+          desert: desert / sum,
+          tundra: tundra / sum,
+          jungle: rawJungle / sum,
+        }
+      : { forest: 1 / 6, swamp: 1 / 6, plains: 1 / 6, desert: 1 / 6, tundra: 1 / 6, jungle: 1 / 6 };
+
+  return { ok: true, params: { ...v1Result.params, biomeMix } };
 }
 
 // Every shipped codec version stays decodable forever — the direct analog of
@@ -93,6 +149,7 @@ function decodeV1(bytes: Uint8Array): DecodeResult {
 // never remove or repurpose an existing one.
 const DECODERS: Record<number, (bytes: Uint8Array) => DecodeResult> = {
   1: decodeV1,
+  2: decodeV2,
 };
 
 // --- base64url + public API ---------------------------------------------------
@@ -120,7 +177,7 @@ function fromBase64Url(code: string): Uint8Array | null {
 }
 
 export function encodeParams(params: GenerationParams): string {
-  return toBase64Url(encodeV1(params));
+  return toBase64Url(encodeV2(params));
 }
 
 export function decodeParams(code: string): DecodeResult {

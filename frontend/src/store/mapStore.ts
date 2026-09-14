@@ -4,19 +4,37 @@ import { centroid, convexHull, padHull } from "../core/geometry";
 import { edgesForNode } from "../core/graph";
 import { generateMap } from "../core/generator";
 import { buildPrototypeMap } from "../core/prototypeMap";
+import { REGION_PRESET_IDS, REGION_PRESETS, type RegionPresetId } from "../core/regionPresets";
 import { decodeParams, encodeParams } from "../core/shareCode";
 import { isOutpostBranch, isWaterBranch } from "../core/taxonomy";
 import { validateMap, type Violation } from "../core/validator";
 import type { CompassDir, GenerationParams, MapEdge, MapNode, WorldMap } from "../types/map";
 
 // Re-exported so the UI layer (components/) can infer a node's Tier 1.5 fork,
-// or compute a hull for the terrain/faction overlay layers, without importing
-// core/ directly — components may only import store/, types/, and React
-// (spec Section 2 / CLAUDE.md's architecture contract).
-export { centroid, convexHull, isOutpostBranch, isWaterBranch, padHull };
+// compute a hull for the terrain/faction overlay layers, or list region
+// presets, without importing core/ directly — components may only import
+// store/, types/, and React (spec Section 2 / CLAUDE.md's architecture
+// contract).
+export { centroid, convexHull, isOutpostBranch, isWaterBranch, padHull, REGION_PRESET_IDS, REGION_PRESETS };
+export type { RegionPresetId };
 
 const MAX_HISTORY = 30;
 const STORAGE_KEY = "overworld-current";
+
+// The one sanctioned Math.random() use in the app (spec Section 4) — every
+// other seed value flows from this, either at load or via randomizeSeed().
+function randomSeed(): number {
+  return Math.floor(Math.random() * 4294967296);
+}
+
+// Same sanctioned exception, mirrored for region presets (spec Section 7c) —
+// picks one at random so an untouched fresh app load still reads as a
+// coherent region instead of a flat average of all six biomes.
+function randomRegionPresetId(): RegionPresetId {
+  return REGION_PRESET_IDS[Math.floor(Math.random() * REGION_PRESET_IDS.length)];
+}
+
+const initialRegionPreset = REGION_PRESETS[randomRegionPresetId()];
 
 export const DEFAULT_GENERATION_PARAMS: GenerationParams = {
   seed: randomSeed(),
@@ -24,19 +42,14 @@ export const DEFAULT_GENERATION_PARAMS: GenerationParams = {
   gridCols: 10,
   gridRows: 8,
   nodeTypeBias: { settlement: 0.2, wilderness: 0.55, poi: 0.25 },
-  wildernessWaterFraction: 0.15,
+  wildernessWaterFraction: initialRegionPreset.wildernessWaterFraction,
   settlementOutpostFraction: 0.25,
+  biomeMix: { ...initialRegionPreset.biomeMix },
   checkRequiredFraction: 0.25,
   edgeDensity: 0.5,
   boundaryFraction: 0.7,
   generateTerrainZones: false,
 };
-
-// The one sanctioned Math.random() use in the app (spec Section 4) — every
-// other seed value flows from this, either at load or via randomizeSeed().
-function randomSeed(): number {
-  return Math.floor(Math.random() * 4294967296);
-}
 
 // localStorage is unavailable in the Vitest ("node") test environment and may
 // throw in private-browsing contexts — persistence is a convenience, never a
@@ -123,22 +136,23 @@ export function selectExitsForNode(map: WorldMap, nodeId: string): NodeExit[] {
   });
 }
 
-type NodeTypeBias = GenerationParams["nodeTypeBias"];
-
-// Spec Section 11, View B: when one node-type slider moves, the other three
-// rescale proportionally so all four continue to sum to 1.0.
-export function rebalanceNodeTypeBias(
-  current: NodeTypeBias,
-  changedKey: keyof NodeTypeBias,
+// Spec Section 11, View B: when one slider in a bias/mix group moves, the
+// others rescale proportionally so the group continues to sum to 1.0.
+// Originally written just for the three nodeTypeBias shares; generalized
+// once biomeMix (six shares) needed the identical behavior — a second real
+// use case, not speculative genericization.
+export function rebalanceShares<K extends string>(
+  current: Record<K, number>,
+  changedKey: K,
   newValue: number
-): NodeTypeBias {
+): Record<K, number> {
   const clamped = Math.max(0, Math.min(1, newValue));
-  const keys = Object.keys(current) as (keyof NodeTypeBias)[];
+  const keys = Object.keys(current) as K[];
   const others = keys.filter((k) => k !== changedKey);
   const oldRestSum = others.reduce((sum, k) => sum + current[k], 0);
   const remaining = 1 - clamped;
 
-  const next = { ...current, [changedKey]: clamped };
+  const next: Record<K, number> = { ...current, [changedKey]: clamped };
   if (oldRestSum <= 0) {
     const share = remaining / others.length;
     for (const k of others) next[k] = share;
@@ -146,8 +160,8 @@ export function rebalanceNodeTypeBias(
     for (const k of others) next[k] = current[k] * (remaining / oldRestSum);
   }
 
-  // Floating-point drift guard so the four values always sum to exactly 1
-  // (within float precision), not just approximately.
+  // Floating-point drift guard so the group always sums to exactly 1 (within
+  // float precision), not just approximately.
   const total = keys.reduce((sum, k) => sum + next[k], 0);
   if (total > 0) {
     for (const k of keys) next[k] = next[k] / total;
@@ -192,6 +206,13 @@ interface MapState {
   loadMap: (map: WorldMap) => void;
   updateDraftParam: <K extends keyof GenerationParams>(key: K, value: GenerationParams[K]) => void;
   randomizeSeed: () => void;
+  // Both set biomeMix + wildernessWaterFraction on draftParams in one action
+  // (spec Section 7c) — a UI/store convenience, not a generator concept; the
+  // generator only ever reads the resulting biomeMix, same as any other
+  // param. Neither is a persisted "mode" — dragging a biome slider
+  // afterward is just a new biomeMix, nothing to fall in or out of.
+  applyRegionPreset: (id: RegionPresetId) => void;
+  randomizeRegionPreset: () => void;
 
   updateNode: (id: string, patch: Partial<MapNode>) => void;
   deleteNode: (id: string) => void;
@@ -250,6 +271,22 @@ export const useMapStore = create<MapState>((set, get) => ({
   updateDraftParam: (key, value) => set((state) => ({ draftParams: { ...state.draftParams, [key]: value } })),
 
   randomizeSeed: () => set((state) => ({ draftParams: { ...state.draftParams, seed: randomSeed() } })),
+
+  applyRegionPreset: (id) =>
+    set((state) => {
+      const preset = REGION_PRESETS[id];
+      return {
+        draftParams: {
+          ...state.draftParams,
+          biomeMix: { ...preset.biomeMix },
+          wildernessWaterFraction: preset.wildernessWaterFraction,
+        },
+      };
+    }),
+
+  randomizeRegionPreset: () => {
+    get().applyRegionPreset(randomRegionPresetId());
+  },
 
   updateNode: (id, patch) =>
     set((state) => {

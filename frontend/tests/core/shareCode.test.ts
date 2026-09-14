@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateMap } from "../../src/core/generator";
+import { REGION_PRESETS } from "../../src/core/regionPresets";
 import { decodeParams, encodeParams, PARAMS_CODEC_VERSION } from "../../src/core/shareCode";
 import type { GenerationParams, WorldMap } from "../../src/types/map";
 
@@ -28,6 +29,7 @@ const DEFAULT_PARAMS: GenerationParams = {
   nodeTypeBias: { settlement: 0.2, wilderness: 0.55, poi: 0.25 },
   wildernessWaterFraction: 0.15,
   settlementOutpostFraction: 0.25,
+  biomeMix: { forest: 0.3, swamp: 0.15, plains: 0.25, desert: 0.1, tundra: 0.1, jungle: 0.1 },
   checkRequiredFraction: 0.25,
   edgeDensity: 0.5,
   boundaryFraction: 0.7,
@@ -83,6 +85,20 @@ describe("encodeParams / decodeParams", () => {
     expect(settlement + wilderness + poi).toBeCloseTo(1, 10);
   });
 
+  it("reproduces biomeMix within a small epsilon and always summing to exactly 1", () => {
+    const params: GenerationParams = {
+      ...DEFAULT_PARAMS,
+      biomeMix: { forest: 0.2, swamp: 0.05, plains: 0.3, desert: 0.15, tundra: 0.1, jungle: 0.2 },
+    };
+    const result = decodeParams(encodeParams(params));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const { forest, swamp, plains, desert, tundra, jungle } = result.params.biomeMix;
+    expect(forest).toBeCloseTo(params.biomeMix.forest, 2);
+    expect(jungle).toBeCloseTo(params.biomeMix.jungle, 2);
+    expect(forest + swamp + plains + desert + tundra + jungle).toBeCloseTo(1, 10);
+  });
+
   it("handles extreme values at each field's min/max without error", () => {
     const extremes: GenerationParams[] = [
       { ...DEFAULT_PARAMS, seed: 0, targetNodeCount: 20, gridCols: 6, gridRows: 5 },
@@ -90,6 +106,7 @@ describe("encodeParams / decodeParams", () => {
       {
         ...DEFAULT_PARAMS,
         nodeTypeBias: { settlement: 1, wilderness: 0, poi: 0 },
+        biomeMix: { forest: 1, swamp: 0, plains: 0, desert: 0, tundra: 0, jungle: 0 },
         edgeDensity: 0,
         checkRequiredFraction: 1,
         boundaryFraction: 0,
@@ -111,7 +128,7 @@ describe("encodeParams / decodeParams", () => {
 
   it("produces a short, URL-safe code", () => {
     const code = encodeParams(DEFAULT_PARAMS);
-    expect(code.length).toBeLessThanOrEqual(24);
+    expect(code.length).toBeLessThanOrEqual(28);
     expect(code).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 
@@ -119,9 +136,43 @@ describe("encodeParams / decodeParams", () => {
     // Indirect check: decoding should succeed under the version this build
     // knows about, and PARAMS_CODEC_VERSION itself should be a small,
     // stable, forward-compatible integer.
-    expect(PARAMS_CODEC_VERSION).toBe(1);
+    expect(PARAMS_CODEC_VERSION).toBe(2);
     const result = decodeParams(encodeParams(DEFAULT_PARAMS));
     expect(result.ok).toBe(true);
+  });
+
+  it("a v1 (pre-biomeMix) share code still decodes, filling a sensible default biomeMix (regression)", () => {
+    // Hand-construct a v1-shaped (15-byte) payload — what encodeParams used
+    // to produce before M4.7.2 added biomeMix. decodeV1 must keep working
+    // and must never be left behind when the type it constructs changes.
+    const v1Bytes = new Uint8Array(15);
+    v1Bytes[0] = 1;
+    v1Bytes[1] = 0;
+    v1Bytes[2] = 0;
+    v1Bytes[3] = 0x30;
+    v1Bytes[4] = 0x39; // seed = 12345
+    v1Bytes[5] = 49; // targetNodeCount
+    v1Bytes[6] = (10 & 0x0f) | ((8 & 0x0f) << 4); // gridCols=10, gridRows=8
+    v1Bytes[7] = Math.round(0.2 * 255);
+    v1Bytes[8] = Math.round(0.55 * 255);
+    v1Bytes[9] = 50; // edgeDensity
+    v1Bytes[10] = 25; // checkRequiredFraction
+    v1Bytes[11] = 70; // boundaryFraction
+    v1Bytes[12] = 15; // wildernessWaterFraction
+    v1Bytes[13] = 25; // settlementOutpostFraction
+    v1Bytes[14] = 0; // generateTerrainZones = false
+
+    let binary = "";
+    for (const b of v1Bytes) binary += String.fromCharCode(b);
+    const code = btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+    const result = decodeParams(code);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.params.seed).toBe(12345);
+    expect(result.params.biomeMix).toEqual(REGION_PRESETS.temperate_mixed.biomeMix);
+    // still a valid, generatable GenerationParams
+    expect(() => generateMap(result.params)).not.toThrow();
   });
 
   it("rejects an unsupported version without throwing", () => {

@@ -219,6 +219,21 @@ export interface GenerationParams {
   wildernessWaterFraction: number;    // 0.0–1.0, default 0.15 — fraction of wilderness placements that are water (vs. land/biome)
   settlementOutpostFraction: number;  // 0.0–1.0, default 0.25 — fraction of settlement placements that are outposts (vs. civilian-scale)
 
+  // Biome frequency for the wilderness land branch (six values must sum to
+  // 1.0) — replaces a flat uniform pick across all six Biome values so a
+  // generated map can read as regionally coherent (Section 7c: Region
+  // Presets is a UI/store convenience for populating this field with a
+  // curated combination; the generator itself has no preset concept, it
+  // just reads whatever is here, exactly like every other param).
+  biomeMix: {
+    forest: number;   // default 0.30
+    swamp: number;    // default 0.15
+    plains: number;   // default 0.25
+    desert: number;   // default 0.10
+    tundra: number;   // default 0.10
+    jungle: number;   // default 0.10
+  };
+
   // Difficulty / traversal
   checkRequiredFraction: number;  // 0.0–1.0, default 0.25
   edgeDensity: number;            // 0.0–1.0, default 0.5
@@ -496,7 +511,7 @@ Per Section 3c, the generator now places a full Tier 1/1.5/2 classification per 
   - **Edge zone** (outer 1–2 rows/cols): eligible for all three Tier 1 types, but this is where `boundaryFraction` concentrates — see below
 - Fill zones by drawing from `nodeTypeBias` weights (`settlement | wilderness | poi`, three values now, not four), constrained to eligible zones exactly as before
 - For each placed node, resolve its Tier 1.5 fork and Tier 2 subtype:
-  - **Wilderness:** roll `rng() < params.wildernessWaterFraction` → water branch (pick a `WaterFeature`); else land branch (pick a `Biome`)
+  - **Wilderness:** roll `rng() < params.wildernessWaterFraction` → water branch (pick a `WaterFeature`, uniform); else land branch (pick a `Biome`, weighted by `params.biomeMix` — not uniform; see Section 7c)
   - **Settlement:** roll `rng() < params.settlementOutpostFraction` → outpost branch (pick an `OutpostKind`); else civilian branch (pick a `CivilianScale`, weighted toward `village`/`town` — `city` and especially `metropolis` should be rare, at most one or two `city`-or-above per map regardless of `targetNodeCount`)
   - **Poi:** pick a `PoiKind` (`ruin | dungeon | lair | landmark`)
 - Boundary markers: for nodes in the edge zone, roll `rng() < params.boundaryFraction`; if true, attach a `BoundaryMarker` with a reason chosen from `coastline | mountain_range | canyon_void | magical_barrier` (uniform pick is an acceptable default — no evidence yet that a different weighting is needed). Mid-zone nodes may also occasionally receive one at a much lower rate to avoid a hard ring artifact at the zone boundary (mirrors the old `midZoneMountainAllowed` safety-margin idea).
@@ -562,11 +577,33 @@ return {
   edges,
   extensions,        // {} unless generateTerrainZones ran (Step 2.5) — factions is always untouched
   params,
-  algorithmVersion: ALGORITHM_VERSION,  // imported constant "2.0.0" — bumped for this taxonomy rework (breaking data-model change, see Section 4)
+  algorithmVersion: ALGORITHM_VERSION,  // imported constant "2.1.0" — the biome draw's distribution changed (Section 7c), a minor bump per Section 4's rule
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 }
 ```
+
+---
+
+## 7c. Region Presets (`src/core/regionPresets.ts`) — a UI/store convenience, not a generator concept
+
+The generator has **no preset concept whatsoever** — Step 1 always just reads `params.biomeMix` directly, exactly like every other param. Region presets exist entirely to make it easy to *populate* `biomeMix` (and `wildernessWaterFraction`) with a curated, thematically coherent combination in one action, the same way "Randomize" sets a concrete `seed` without `seed` ever needing to know "random" is a concept — there's no "which mode is active" tracked anywhere.
+
+Six presets, each `{ label, biomeMix, wildernessWaterFraction }`, all `biomeMix` values summing to exactly 1.0:
+
+```
+Preset            forest swamp plains desert tundra jungle  water
+Temperate Mixed    .30    .15   .25    .10    .10    .10    .15
+Magical Forest     .55    .10   .15    .05    .00    .15    .25
+Frost              .05    .05   .20    .10    .60    .00    .20
+Arid Desert        .05    .05   .20    .55    .05    .10    .05
+Swampland          .20    .50   .10    .05    .05    .10    .30
+Tropical Jungle    .15    .15   .10    .05    .00    .55    .20
+```
+
+Each has one dominant biome (~50–60%) and the thematically-contradictory biome at or near zero — a `tundra`-heavy region reads as coherent because `desert`/`jungle` are rare or absent by construction, without any spatial "don't place these two next to each other" logic (a hard adjacency constraint was considered and deliberately not built — the macro weighting alone was judged sufficient).
+
+`store/mapStore.ts` exposes `applyRegionPreset(id)` (sets `biomeMix` + `wildernessWaterFraction` on `draftParams` from a named preset) and `randomizeRegionPreset()` (picks one of the six via `Math.random()` — the same sanctioned exception `randomizeSeed()` already uses, mirrored the same way). `DEFAULT_GENERATION_PARAMS` initializes from one randomly-picked preset at module load, so an untouched fresh app load still reads as a coherent region rather than a flat average of all six biomes. Manually dragging any biome slider afterward is just "whatever `biomeMix` says now" — no separate "custom mode" exists to fall into or out of.
 
 ---
 
@@ -754,6 +791,14 @@ Controls read/write the store's `draftParams` directly via `updateDraftParam` (S
 | Boundary containment | Slider | Open→Closed | 70% |
 | Water (of Wilderness) | Slider | 0–100% | 15% |
 | Outpost (of Settlement) | Slider | 0–100% | 25% |
+| Region preset | Select | 6 named presets | — |
+| Randomize region | Button | — | — |
+| Forest | Slider | 0–100% | 30% |
+| Swamp | Slider | 0–100% | 15% |
+| Plains | Slider | 0–100% | 25% |
+| Desert | Slider | 0–100% | 10% |
+| Tundra | Slider | 0–100% | 10% |
+| Jungle | Slider | 0–100% | 10% |
 | Generate terrain zones | Checkbox | — | off |
 | Seed | Number input | 0–4294967295 | random on load |
 | Randomize seed | Button | — | — |
@@ -762,7 +807,7 @@ Controls read/write the store's `draftParams` directly via `updateDraftParam` (S
 | Import JSON | Button | — | — |
 | Copy Link | Button | — | — |
 
-The three node type sliders (Settlements/Wilderness/Points of Interest — Tier 1, spec Section 3c) must normalize to sum to 1.0 on change — when one moves, the others scale proportionally to compensate (`rebalanceNodeTypeBias`, `store/mapStore.ts`). Show the actual percentage next to each slider. "Water"/"Outpost" are Tier 1.5 fork fractions, not Tier 1 shares, and don't participate in that renormalization. "Copy Link" copies `window.location.href` (Section 13b) — the address bar already reflects the current map via `generate()`'s `history.replaceState` call, so this button is a convenience, not the only way to get a working link.
+The three node type sliders (Settlements/Wilderness/Points of Interest — Tier 1, spec Section 3c) must normalize to sum to 1.0 on change — when one moves, the others scale proportionally to compensate (`rebalanceShares`, `store/mapStore.ts` — generalized from what was originally `rebalanceNodeTypeBias` once the six biome sliders needed the identical behavior). Show the actual percentage next to each slider. "Water"/"Outpost" are Tier 1.5 fork fractions, not Tier 1 shares, and don't participate in that renormalization. The six biome sliders (Forest/Swamp/Plains/Desert/Tundra/Jungle — `biomeMix`, Section 3a) renormalize among themselves the same way, independently of the Tier 1 three. "Region preset" (Section 7c) loads a named preset's `biomeMix` + water fraction into the sliders in one action; "Randomize region" does the same with a randomly-chosen preset. Neither is a persisted "mode" — dragging any biome slider afterward is just a new `biomeMix`, same as always. "Copy Link" copies `window.location.href` (Section 13b) — the address bar already reflects the current map via `generate()`'s `history.replaceState` call, so this button is a convenience, not the only way to get a working link.
 
 ### View C — Node Detail Panel
 Right sidebar, appears on node select.
@@ -868,7 +913,7 @@ On app load: if `overworld-current` exists and its `algorithmVersion` matches th
 
 A generated map's full `GenerationParams` (seed included — `seed` is already a field of `GenerationParams`, not a separate value) can be encoded into one short, URL-safe **share code** carried as a query parameter, so pasting the address bar reproduces the identical map for anyone. This is an **encoding**, not a hash — it must be decodable back into the exact params, which a one-way hash (SHA-256, etc.) cannot do.
 
-### Byte layout (`PARAMS_CODEC_VERSION = 1`, 15 bytes)
+### Byte layout (`PARAMS_CODEC_VERSION = 2`, 20 bytes)
 
 | Bytes | Field | Encoding |
 |---|---|---|
@@ -877,17 +922,20 @@ A generated map's full `GenerationParams` (seed included — `seed` is already a
 | 5 | `targetNodeCount` | raw uint8 (range 20–80 fits) |
 | 6 | `gridCols` \| `gridRows` | low nibble = `gridCols` (6–14), high nibble = `gridRows` (5–12) |
 | 7 | `nodeTypeBias.settlement` | fixed-point 0–255 over [0,1] |
-| 8 | `nodeTypeBias.wilderness` | fixed-point 0–255 over [0,1] — `poi` derived as `1 - settlement - wilderness` on decode, then all three renormalized to sum to exactly 1 (same drift guard `rebalanceNodeTypeBias` already uses) |
+| 8 | `nodeTypeBias.wilderness` | fixed-point 0–255 over [0,1] — `poi` derived as `1 - settlement - wilderness` on decode, then all three renormalized to sum to exactly 1 (same drift guard `rebalanceShares` already uses) |
 | 9 | `edgeDensity` | exact integer percent 0–100, decoded via `/100` |
 | 10 | `checkRequiredFraction` | exact integer percent 0–100 |
 | 11 | `boundaryFraction` | exact integer percent 0–100 |
 | 12 | `wildernessWaterFraction` | exact integer percent 0–100 |
 | 13 | `settlementOutpostFraction` | exact integer percent 0–100 |
 | 14 | flags | bit 0 = `generateTerrainZones`; bits 1–7 reserved |
+| 15-19 | `biomeMix.forest`, `.swamp`, `.plains`, `.desert`, `.tundra` | fixed-point 0–255 over [0,1] each — `.jungle` derived as `1 - (the other five)` on decode, then all six renormalized to sum to exactly 1 (M4.7.2; same drift-guard pattern as `nodeTypeBias` above) |
 
-Base64url-encoded (`btoa`/`atob` — available identically in modern Node and every current browser, same cross-runtime assumption `crypto.randomUUID()` already relies on — with `+`/`/` swapped to `-`/`_` and `=` padding stripped) → ~20 characters. Carried as the `map` query parameter, e.g. `?map=AQIDBAUG...`.
+Base64url-encoded (`btoa`/`atob` — available identically in modern Node and every current browser, same cross-runtime assumption `crypto.randomUUID()` already relies on — with `+`/`/` swapped to `-`/`_` and `=` padding stripped) → ~27 characters. Carried as the `map` query parameter, e.g. `?map=AQIDBAUG...`.
 
-**Why the five single-slider fractions (`edgeDensity`, `checkRequiredFraction`, `boundaryFraction`, `wildernessWaterFraction`, `settlementOutpostFraction`) use exact integer percent, not generic fixed-point:** the Generation Panel's sliders (Section 11, View B) only ever produce `v/100` for integer `v` 0–100 before committing to `draftParams`. Encoding the integer and decoding via `/100` reconstructs the *exact* float the UI produced — zero precision loss, and no risk of an encoding epsilon flipping one of the many `rng() < fraction` comparisons the generator makes per node/edge. `nodeTypeBias` doesn't get the same treatment because `rebalanceNodeTypeBias`'s proportional rescale produces non-round floats regardless of encoding scheme — lower-stakes anyway, since `nodeTypeBias` only ever feeds a `Math.round(nodeCount × share)` budget calculation (Section 7), not a raw per-node RNG comparison.
+**`PARAMS_CODEC_VERSION 1`'s decoder stays registered and was updated (not left alone) when `biomeMix` was added** — it fills a sensible default (`biomeMix` = the Temperate Mixed region preset's values, Section 7c) for old 15-byte links that predate the field, so they keep decoding to a valid, current-shape `GenerationParams` instead of breaking. Never delete or repurpose a decoder version once shipped — this is the exact scenario the versioned-registry design exists for.
+
+**Why the five single-slider fractions (`edgeDensity`, `checkRequiredFraction`, `boundaryFraction`, `wildernessWaterFraction`, `settlementOutpostFraction`) use exact integer percent, not generic fixed-point:** the Generation Panel's sliders (Section 11, View B) only ever produce `v/100` for integer `v` 0–100 before committing to `draftParams`. Encoding the integer and decoding via `/100` reconstructs the *exact* float the UI produced — zero precision loss, and no risk of an encoding epsilon flipping one of the many `rng() < fraction` comparisons the generator makes per node/edge. `nodeTypeBias` and `biomeMix` don't get the same treatment because `rebalanceShares`'s proportional rescale produces non-round floats regardless of encoding scheme — lower-stakes anyway, since `nodeTypeBias` only ever feeds a `Math.round(nodeCount × share)` budget calculation (Section 7) and `biomeMix` only ever feeds a weighted pick, neither a raw per-node RNG *comparison* the way the five percent fields do.
 
 ### Versioning
 
@@ -1295,6 +1343,12 @@ Acceptance: a map generated with `generateTerrainZones: true` shows colored terr
 Deliverables: `core/shareCode.ts` (`encodeParams`/`decodeParams` per Section 13b's byte layout, `PARAMS_CODEC_VERSION`), `store/mapStore.ts` updated (`resolveInitialMap`'s URL → localStorage → prototype-map precedence, `generate()`/`loadMap()` both call `history.replaceState` via a `writeShareCodeToUrl` helper), a "Copy Link" button in `GeneratePanel.tsx`.
 
 Acceptance: generating a map updates the address bar with a `?map=...` share code; opening that URL fresh (or pasting it into a new tab) reproduces the identical map; Copy Link copies the current address bar URL to the clipboard; a malformed or unrecognized-version share code falls through silently to the existing localStorage/prototype-map chain (no crash, no user-facing error — that banner is explicitly deferred); `shareCode.test.ts` covers round-trip correctness (exact for seed/targetNodeCount/gridCols/gridRows/flags/the five integer-percent fraction fields, epsilon-bounded and sum-to-1 for `nodeTypeBias`) and rejects malformed/unsupported-version input without throwing.
+
+### M4.7.2 — Macro region presets for biome coherence
+
+Deliverables: `core/regionPresets.ts` (six named presets per Section 7c); `types/map.ts`'s `GenerationParams.biomeMix` (new field); `core/generator.ts`'s wilderness land-branch subtype pick reworked from a flat uniform `randPick` to a weighted pick against `biomeMix` (`ALGORITHM_VERSION` → `2.1.0`); `core/shareCode.ts`'s `PARAMS_CODEC_VERSION` → `2` (new `encodeV2`/`decodeV2`, `decodeV1` updated to fill a default `biomeMix` rather than left alone); `store/mapStore.ts`'s `rebalanceNodeTypeBias` generalized to `rebalanceShares` (now also driving the six new biome sliders) plus new `applyRegionPreset`/`randomizeRegionPreset` actions; `GeneratePanel.tsx` gains six biome sliders, a Region Preset select, and a Randomize Region button.
+
+Acceptance: a map generated with the Frost preset never places a `jungle` node (its `biomeMix.jungle` is exactly 0) across many seeds; the Region Preset select loads a preset's exact values into the sliders in one action, and manually dragging any biome slider afterward just changes `biomeMix` with no separate "custom mode" to fall in or out of; a share code decodes `biomeMix` correctly under `PARAMS_CODEC_VERSION 2`, and an old `PARAMS_CODEC_VERSION 1` code (predating `biomeMix`) still decodes successfully with a sensible default rather than failing; `rebalanceShares` produces identical behavior to the old `rebalanceNodeTypeBias` for the 3-key case (regression) and correctly renormalizes the 6-key `biomeMix` case; visually verified via the same headless-Chrome-screenshot approach as M4.7 (see `CLAUDE.md`) — a Frost-preset map should visibly read as tundra-dominant.
 
 ### M5 — Edit panels
 Deliverables: `NodePanel.tsx`, `EdgePanel.tsx`, `DirectionPicker.tsx`, `NodeTypeSelect.tsx`

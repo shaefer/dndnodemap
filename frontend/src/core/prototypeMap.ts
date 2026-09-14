@@ -216,6 +216,7 @@ export function buildPrototypeMap(): WorldMap {
     nodeTypeBias: { settlement: 0.2, wilderness: 0.55, poi: 0.25 },
     wildernessWaterFraction: 0.15,
     settlementOutpostFraction: 0.25,
+    biomeMix: { forest: 0.3, swamp: 0.15, plains: 0.25, desert: 0.1, tundra: 0.1, jungle: 0.1 },
     checkRequiredFraction: 0.25,
     edgeDensity: 0.5,
     boundaryFraction: 0.7,

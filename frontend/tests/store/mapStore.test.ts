@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { DEFAULT_GENERATION_PARAMS, rebalanceNodeTypeBias, selectExitsForNode, useMapStore } from "../../src/store/mapStore";
+import {
+  DEFAULT_GENERATION_PARAMS,
+  REGION_PRESET_IDS,
+  REGION_PRESETS,
+  rebalanceShares,
+  selectExitsForNode,
+  useMapStore,
+} from "../../src/store/mapStore";
 import { buildPrototypeMap } from "../../src/core/prototypeMap";
 import type { GenerationParams, WorldMap } from "../../src/types/map";
 
@@ -98,35 +105,72 @@ describe("mapStore", () => {
   });
 });
 
-describe("rebalanceNodeTypeBias", () => {
-  const bias: GenerationParams["nodeTypeBias"] = { settlement: 0.18, wilderness: 0.45, mountain: 0.22, ruin: 0.15 };
+describe("rebalanceShares", () => {
+  const bias: GenerationParams["nodeTypeBias"] = { settlement: 0.2, wilderness: 0.55, poi: 0.25 };
 
-  it("sets the changed key to the new value and keeps the total at 1", () => {
-    const next = rebalanceNodeTypeBias(bias, "settlement", 0.5);
+  it("sets the changed key to the new value and keeps the total at 1 (3-key case, regression)", () => {
+    const next = rebalanceShares(bias, "settlement", 0.5);
     expect(next.settlement).toBeCloseTo(0.5, 10);
-    const total = next.settlement + next.wilderness + next.mountain + next.ruin;
+    const total = next.settlement + next.wilderness + next.poi;
     expect(total).toBeCloseTo(1, 10);
   });
 
-  it("scales the other three proportionally to their prior relative sizes", () => {
-    const next = rebalanceNodeTypeBias(bias, "settlement", 0.5);
-    // wilderness:mountain:ruin ratio should be unchanged (0.45:0.22:0.15)
-    expect(next.wilderness / next.mountain).toBeCloseTo(0.45 / 0.22, 6);
-    expect(next.mountain / next.ruin).toBeCloseTo(0.22 / 0.15, 6);
+  it("scales the other two proportionally to their prior relative sizes (3-key case, regression)", () => {
+    const next = rebalanceShares(bias, "settlement", 0.5);
+    // wilderness:poi ratio should be unchanged (0.55:0.25)
+    expect(next.wilderness / next.poi).toBeCloseTo(0.55 / 0.25, 6);
   });
 
   it("clamps the changed value to [0, 1]", () => {
-    const next = rebalanceNodeTypeBias(bias, "mountain", 5);
-    expect(next.mountain).toBeCloseTo(1, 10);
-    expect(next.settlement + next.wilderness + next.ruin).toBeCloseTo(0, 10);
+    const next = rebalanceShares(bias, "wilderness", 5);
+    expect(next.wilderness).toBeCloseTo(1, 10);
+    expect(next.settlement + next.poi).toBeCloseTo(0, 10);
   });
 
   it("splits evenly among the others when the prior rest-sum was zero", () => {
-    const allInOne: GenerationParams["nodeTypeBias"] = { settlement: 1, wilderness: 0, mountain: 0, ruin: 0 };
-    const next = rebalanceNodeTypeBias(allInOne, "settlement", 0.4);
-    expect(next.wilderness).toBeCloseTo(0.2, 10);
-    expect(next.mountain).toBeCloseTo(0.2, 10);
-    expect(next.ruin).toBeCloseTo(0.2, 10);
+    const allInOne: GenerationParams["nodeTypeBias"] = { settlement: 1, wilderness: 0, poi: 0 };
+    const next = rebalanceShares(allInOne, "settlement", 0.4);
+    expect(next.wilderness).toBeCloseTo(0.3, 10);
+    expect(next.poi).toBeCloseTo(0.3, 10);
+  });
+
+  it("also works for the 6-key biomeMix case", () => {
+    const biomeMix: GenerationParams["biomeMix"] = {
+      forest: 0.3,
+      swamp: 0.15,
+      plains: 0.25,
+      desert: 0.1,
+      tundra: 0.1,
+      jungle: 0.1,
+    };
+    const next = rebalanceShares(biomeMix, "tundra", 0.6);
+    expect(next.tundra).toBeCloseTo(0.6, 10);
+    const total = next.forest + next.swamp + next.plains + next.desert + next.tundra + next.jungle;
+    expect(total).toBeCloseTo(1, 10);
+    // ratios among the untouched five should be preserved
+    expect(next.forest / next.swamp).toBeCloseTo(0.3 / 0.15, 6);
+  });
+});
+
+describe("applyRegionPreset / randomizeRegionPreset", () => {
+  beforeEach(resetStore);
+
+  it("applyRegionPreset sets biomeMix and wildernessWaterFraction from the named preset", () => {
+    useMapStore.getState().applyRegionPreset("frost");
+    const { draftParams } = useMapStore.getState();
+    expect(draftParams.biomeMix).toEqual(REGION_PRESETS.frost.biomeMix);
+    expect(draftParams.wildernessWaterFraction).toBe(REGION_PRESETS.frost.wildernessWaterFraction);
+  });
+
+  it("randomizeRegionPreset applies one of the registered presets", () => {
+    useMapStore.getState().randomizeRegionPreset();
+    const { biomeMix, wildernessWaterFraction } = useMapStore.getState().draftParams;
+    const matches = REGION_PRESET_IDS.some(
+      (id) =>
+        REGION_PRESETS[id].wildernessWaterFraction === wildernessWaterFraction &&
+        JSON.stringify(REGION_PRESETS[id].biomeMix) === JSON.stringify(biomeMix)
+    );
+    expect(matches).toBe(true);
   });
 });
 
