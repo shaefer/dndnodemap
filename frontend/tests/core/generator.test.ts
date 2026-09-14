@@ -83,7 +83,7 @@ describe("generateMap", () => {
 
   it("sets the current algorithm version", () => {
     const map = generateMap(DEFAULT_PARAMS);
-    expect(map.algorithmVersion).toBe("2.1.0");
+    expect(map.algorithmVersion).toBe("2.1.1");
   });
 
   it("never assigns seasonal — that stays a manual, DM-authored call (Section 3c)", () => {
@@ -183,6 +183,64 @@ describe("generateMap", () => {
       const map = generateMap({ ...DEFAULT_PARAMS, seed, biomeMix: frostLike, targetNodeCount: 80 });
       expect(map.nodes.some((n) => n.subtype === "jungle")).toBe(false);
       expect(map.nodes.some((n) => n.subtype === "tundra")).toBe(true); // dominant biome should show up
+    }
+  });
+
+  it("repairConnectivity merges nearest component pairs, not just '2nd-biggest into biggest' (regression)", () => {
+    // Real user-reported case: this exact seed+params, on a sparse 14x12
+    // grid with only 37 nodes, used to produce a ~10.6-unit bridge edge
+    // (River_crossing-1 -> Swamp-8) because the old strategy always attached
+    // whichever component wasn't currently largest directly to the largest
+    // one, even when a much closer small pocket was available. No normal
+    // buildEdges edge can exceed CANDIDATE_RADIUS (1.6); a repair edge more
+    // than a few times that is a sign the merge order picked a bad pair.
+    const params: GenerationParams = {
+      seed: 1077081874,
+      targetNodeCount: 37,
+      gridCols: 14,
+      gridRows: 12,
+      nodeTypeBias: { settlement: 0.15294117647058825, wilderness: 0.6588235294117647, poi: 0.18823529411764706 },
+      wildernessWaterFraction: 0.3,
+      settlementOutpostFraction: 0.25,
+      biomeMix: {
+        forest: 0.2,
+        swamp: 0.5019607843137255,
+        plains: 0.10196078431372549,
+        desert: 0.050980392156862744,
+        tundra: 0.050980392156862744,
+        jungle: 0.09411764705882357,
+      },
+      checkRequiredFraction: 0.25,
+      edgeDensity: 0.5,
+      boundaryFraction: 0.7,
+      generateTerrainZones: false,
+    };
+    const map = generateMap(params);
+    const nodeById = new Map(map.nodes.map((n) => [n.id, n]));
+    for (const edge of map.edges) {
+      const from = nodeById.get(edge.fromId)!;
+      const to = nodeById.get(edge.toId)!;
+      const d = Math.hypot(from.gx - to.gx, from.gy - to.gy);
+      expect(d).toBeLessThan(5); // was ~10.6 before the fix; every other edge on this map is under ~2
+    }
+  });
+
+  it("repair edges generally stay short across seeds and grid shapes, not just the one reported case", () => {
+    for (const [gridCols, gridRows, targetNodeCount] of [
+      [14, 12, 37],
+      [10, 8, 25],
+      [14, 12, 20],
+    ] as const) {
+      for (const seed of [1, 2, 3, 42, 999]) {
+        const map = generateMap({ ...DEFAULT_PARAMS, seed, gridCols, gridRows, targetNodeCount });
+        const nodeById = new Map(map.nodes.map((n) => [n.id, n]));
+        for (const edge of map.edges) {
+          const from = nodeById.get(edge.fromId)!;
+          const to = nodeById.get(edge.toId)!;
+          const d = Math.hypot(from.gx - to.gx, from.gy - to.gy);
+          expect(d).toBeLessThan(6);
+        }
+      }
     }
   });
 });

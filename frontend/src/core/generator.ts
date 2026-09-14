@@ -37,7 +37,14 @@ import { BIOMES, isWaterBranch } from "./taxonomy";
 // 2.1.0: M4.7.2 — wilderness land-branch Biome selection changed from a flat
 // uniform pick to a weighted pick against params.biomeMix (spec Section 7c).
 // Same seed now produces different biome placement than 2.0.0 did.
-export const ALGORITHM_VERSION = "2.1.0";
+// 2.1.1: repairConnectivity's merge strategy changed from size-ranked
+// ("2nd-biggest component into biggest") to true nearest-component-pair
+// (closest node pair across any two components) — fixes absurdly long
+// bridge edges on sparse maps with several small isolated pockets. Doesn't
+// change how many bridge edges get added, but changes which node pairs get
+// bridged, which can shift connectionTypeFor's rng() draws for the rest of
+// generation — same seed can produce a different (better-connected) map.
+export const ALGORITHM_VERSION = "2.1.1";
 
 type Zone = "center" | "mid" | "edge";
 
@@ -432,19 +439,29 @@ function repairConnectivity(
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
 
   while (components.length > 1) {
-    // Largest component is treated as "main".
-    components.sort((a, b) => b.length - a.length);
-    const [main, ...rest] = components;
-    const isolated = rest[0];
-
-    let bestPair: { fromId: string; toId: string; d: number } | null = null;
-    for (const isolatedId of isolated) {
-      const isolatedNode = nodeById.get(isolatedId)!;
-      for (const mainId of main) {
-        const mainNode = nodeById.get(mainId)!;
-        const d = dist(isolatedNode, mainNode);
-        if (!bestPair || d < bestPair.d) {
-          bestPair = { fromId: isolatedId, toId: mainId, d };
+    // True nearest-component-pair merging (single-linkage): find the closest
+    // node pair across *any* two components, not just "2nd-biggest into
+    // biggest." The size-ranked version of this used to always attach
+    // whichever component wasn't currently the largest directly to the
+    // largest one, regardless of geography — so a small isolated pocket
+    // sitting right next to a handful of other small pockets, but far from
+    // whatever the largest component happened to be, paid the full
+    // cross-map distance on every merge instead of consolidating locally
+    // first. (Found from a real generated map where this produced a ~10-unit
+    // edge on a map where every other edge was under ~2 units — see
+    // generator.test.ts's regression test pinned to that exact seed.)
+    let bestPair: { fromId: string; toId: string; d: number; compA: number; compB: number } | null = null;
+    for (let i = 0; i < components.length; i++) {
+      for (let j = i + 1; j < components.length; j++) {
+        for (const aId of components[i]) {
+          const aNode = nodeById.get(aId)!;
+          for (const bId of components[j]) {
+            const bNode = nodeById.get(bId)!;
+            const d = dist(aNode, bNode);
+            if (!bestPair || d < bestPair.d) {
+              bestPair = { fromId: aId, toId: bId, d, compA: i, compB: j };
+            }
+          }
         }
       }
     }

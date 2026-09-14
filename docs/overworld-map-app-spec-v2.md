@@ -538,8 +538,10 @@ For each node A, find candidate neighbors within `1.6 * cellSize` radius. For ea
 7. Generator never sets: `travelDays`, `factionId`, or `extensions.factions` — see Section 3c for exactly what's now in-bounds vs. permanently out
 
 After initial pass, run `isConnected()`. If false, run a connectivity repair pass:
-- Find isolated clusters
-- For each isolated cluster, find the nearest node in the main cluster and add a bridging edge in the correct compass direction (or closest available direction if exact is taken)
+- Find all connected components
+- Repeatedly merge the **globally nearest pair of components** — the closest node pair across *any* two components, not just "the 2nd-largest into the largest" — adding a bridging edge between them in the correct compass direction (or closest jointly-available direction if exact is taken), until only one component remains
+
+**Why nearest-pair, not size-ranked:** an earlier version always attached whichever component wasn't currently the largest directly to the largest one, regardless of geography. On a sparse map with several small isolated pockets sitting near each other but far from whatever the largest component happened to be, this produced absurdly long bridge edges (a real generated map hit a ~10.6-unit edge when every other edge on it was under ~2 units) — each small pocket paid the full cross-map distance instead of consolidating with its nearby neighbors first. True nearest-component-pair merging (single-linkage) lets local pockets join up locally before anything has to reach further. See `generator.test.ts`'s regression test, pinned to the exact seed/params that surfaced this.
 
 ### Step 2.5 — `generateTerrainZones(nodes, params, rng): TerrainZone[]` (optional)
 
