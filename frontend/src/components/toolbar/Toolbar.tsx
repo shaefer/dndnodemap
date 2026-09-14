@@ -9,6 +9,7 @@ interface ToolbarProps {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onZoomReset: () => void;
+  onFitToViewport: () => void;
 }
 
 const buttonStyle = (active: boolean, disabled: boolean): React.CSSProperties => ({
@@ -37,6 +38,7 @@ export function Toolbar({
   onZoomIn,
   onZoomOut,
   onZoomReset,
+  onFitToViewport,
 }: ToolbarProps) {
   return (
     <div
@@ -74,6 +76,9 @@ export function Toolbar({
         ⚑ Factions
       </button>
       <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: "auto" }}>
+        <button type="button" onClick={onFitToViewport} title="Fit the whole map to the viewport" style={buttonStyle(false, false)}>
+          ⛶ Fit
+        </button>
         <button type="button" onClick={onZoomOut} title="Zoom out" style={buttonStyle(false, false)}>
           −
         </button>

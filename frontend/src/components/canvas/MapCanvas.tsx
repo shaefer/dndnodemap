@@ -29,6 +29,12 @@ const WHEEL_DELTA_CLAMP = 100;
 // sensitivity, since a button click should always move a fixed, predictable
 // amount.
 const BUTTON_ZOOM_STEP = 1.25;
+// Extra room (in un-scaled SVG units) around the node bounding box for "Fit
+// to viewport" — nodes render up to ~11px radius with a label centered up to
+// ~12px below that, and long labels can extend a fair bit sideways past the
+// node center too, so the box needs slack beyond the raw node-center bounds
+// or a fit would clip labels at the edges.
+const FIT_PADDING = 60;
 
 interface Transform {
   x: number;
@@ -137,6 +143,33 @@ export function MapCanvas() {
     setTransform({ x: 0, y: 0, scale: 1 });
   }
 
+  // Sets scale+pan directly from the current map's node bounding box, rather
+  // than leaving the user to hunt for the right zoom level by hand — an
+  // absolute placement, unlike zoomAround's relative "scale from here."
+  function handleFitToViewport() {
+    const wrap = wrapRef.current;
+    if (!wrap || map.nodes.length === 0) return;
+
+    const xs = map.nodes.map(nx);
+    const ys = map.nodes.map(ny);
+    const minX = Math.min(...xs) - FIT_PADDING;
+    const maxX = Math.max(...xs) + FIT_PADDING;
+    const minY = Math.min(...ys) - FIT_PADDING;
+    const maxY = Math.max(...ys) + FIT_PADDING;
+
+    const viewportW = wrap.clientWidth;
+    const viewportH = wrap.clientHeight;
+    const scale = Math.max(
+      MIN_SCALE,
+      Math.min(MAX_SCALE, Math.min(viewportW / (maxX - minX), viewportH / (maxY - minY)))
+    );
+    setTransform({
+      scale,
+      x: viewportW / 2 - scale * ((minX + maxX) / 2),
+      y: viewportH / 2 - scale * ((minY + maxY) / 2),
+    });
+  }
+
   function handleNodeEnter(node: MapNode, e: MouseEvent<SVGGElement>) {
     setHoveredNodeId(node.id);
     const wrap = wrapRef.current;
@@ -165,6 +198,7 @@ export function MapCanvas() {
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onZoomReset={handleZoomReset}
+        onFitToViewport={handleFitToViewport}
       />
       <div
         ref={wrapRef}

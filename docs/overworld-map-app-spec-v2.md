@@ -787,7 +787,7 @@ Toolbar area gets four small toggle buttons, always visible:
 ```
 Edges and Nodes are always on (buttons shown but disabled/locked). Terrain and Factions are off by default, clickable. When a layer has no data (extensions are empty), the button is greyed out with a tooltip "No terrain zones defined yet."
 
-The same Toolbar also carries zoom controls, right-aligned: `[−] [100%] [+]`. `−`/`+` step the canvas zoom by a fixed factor centered on the canvas's visible center; the `100%` control is itself a button that shows the current zoom percentage and resets pan+zoom to their defaults when clicked. This is a fixed-step complement to the canvas's own continuous wheel/trackpad zoom (View A, Section 11) — not a replacement for it.
+The same Toolbar also carries zoom controls, right-aligned: `[⛶ Fit] [−] [100%] [+]`. `−`/`+` step the canvas zoom by a fixed factor centered on the canvas's visible center; the `100%` control is itself a button that shows the current zoom percentage and resets pan+zoom to their defaults when clicked. This is a fixed-step complement to the canvas's own continuous wheel/trackpad zoom (View A, Section 11) — not a replacement for it. `Fit` sets scale+pan directly from the current map's node bounding box (padded for label/shape overflow) so the whole map fits the visible canvas in one click, rather than requiring the user to hunt for the right zoom level by hand — an absolute placement, not a relative step like the other three controls.
 
 ---
 
