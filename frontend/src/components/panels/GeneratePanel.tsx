@@ -49,6 +49,8 @@ export function GeneratePanel() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   function handleBiasChange(key: keyof GenerationParams["nodeTypeBias"], percent: number) {
     const rebalanced = rebalanceNodeTypeBias(draftParams.nodeTypeBias, key, percent / 100);
@@ -63,6 +65,21 @@ export function GeneratePanel() {
     a.download = `${map.name.replace(/\s+/g, "-").toLowerCase()}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function handleCopyLink() {
+    // The address bar already reflects the current map (generate()/loadMap()
+    // call writeShareCodeToUrl) — this just copies it. Direct browser API
+    // call here, not routed through the store, matching handleDownloadJSON's
+    // precedent: a one-shot UI-triggered side effect, not app state.
+    navigator.clipboard
+      .writeText(window.location.href)
+      .then(() => {
+        setLinkError(null);
+        setLinkCopied(true);
+        setTimeout(() => setLinkCopied(false), 2000);
+      })
+      .catch(() => setLinkError("Couldn't copy the link — copy it from the address bar instead."));
   }
 
   function handleImportClick() {
@@ -217,10 +234,17 @@ export function GeneratePanel() {
       <button
         type="button"
         onClick={generate}
-        style={{ width: "100%", padding: "8px 0", fontSize: 13, fontWeight: 600, marginBottom: 20 }}
+        style={{ width: "100%", padding: "8px 0", fontSize: 13, fontWeight: 600, marginBottom: 8 }}
       >
         Generate
       </button>
+
+      <div style={{ marginBottom: 20 }}>
+        <button type="button" onClick={handleCopyLink} style={{ width: "100%", padding: "6px 0", fontSize: 12 }}>
+          {linkCopied ? "Copied!" : "Copy Link"}
+        </button>
+        {linkError && <div style={{ color: "#D85A30", fontSize: 11, marginTop: 4 }}>{linkError}</div>}
+      </div>
 
       <div>
         <div style={{ fontSize: 11, color: "#888", textTransform: "uppercase", marginBottom: 6 }}>Export / Import</div>

@@ -43,10 +43,13 @@ src/core/
   rng.ts          # Seeded PRNG — seedrandom wrapper + convenience functions
   compass.ts      # Direction math — pure functions only
   graph.ts        # Graph algorithms — BFS, connectivity, hop counts
+  geometry.ts     # Convex hull / hull padding — used by terrain wash and faction territory rendering
+  taxonomy.ts     # Tier 1.5 fork predicates (isWaterBranch, isOutpostBranch) — Section 3c
   generator.ts    # Map generation — orchestrates the above
   validator.ts    # Invariant checks — returns violations, never throws
   exporter.ts     # toJSON(), toMarkdown(), toSVGString()
   names.ts        # Static name lists by node type
+  shareCode.ts    # encodeParams()/decodeParams() — Section 13b
 ```
 
 ### Layer 2 — State (`src/store/`)
@@ -736,24 +739,30 @@ Edges and Nodes are always on (buttons shown but disabled/locked). Terrain and F
 - Selected node/edge gets a highlight ring
 
 ### View B — Generation Panel (sidebar, not modal)
-Controls that update a `draft: GenerationParams` in local state. Generate button commits and calls the store.
+Controls read/write the store's `draftParams` directly via `updateDraftParam` (Section 12 is authoritative on this — not a parallel local draft, superseding this view's earlier "local state" phrasing; see `CLAUDE.md`'s M4 notes). Generate button commits and calls the store.
 
 | Control | Type | Range | Default |
 |---------|------|-------|---------|
 | Node count | Slider | 20–80 | 49 |
 | Grid cols | Slider | 6–14 | 10 |
 | Grid rows | Slider | 5–12 | 8 |
-| Settlements | Slider | 0–100% | 18% |
-| Wilderness | Slider | 0–100% | 45% |
-| Mountain | Slider | 0–100% | 22% |
-| Ruins | Slider | 0–100% | 15% |
+| Settlements | Slider | 0–100% | 20% |
+| Wilderness | Slider | 0–100% | 55% |
+| Points of Interest | Slider | 0–100% | 25% |
 | Edge density | Slider | Sparse→Dense | 50% |
 | Difficulty | Slider | Easy→Hard | 25% |
-| Mountain containment | Slider | Open→Closed | 70% |
+| Boundary containment | Slider | Open→Closed | 70% |
+| Water (of Wilderness) | Slider | 0–100% | 15% |
+| Outpost (of Settlement) | Slider | 0–100% | 25% |
+| Generate terrain zones | Checkbox | — | off |
 | Seed | Number input | 0–4294967295 | random on load |
 | Randomize seed | Button | — | — |
+| Generate | Button | — | — |
+| Download JSON | Button | — | — |
+| Import JSON | Button | — | — |
+| Copy Link | Button | — | — |
 
-The four node type sliders must normalize to sum to 1.0 on change — when one moves, the others scale proportionally to compensate. Show the actual percentage next to each slider.
+The three node type sliders (Settlements/Wilderness/Points of Interest — Tier 1, spec Section 3c) must normalize to sum to 1.0 on change — when one moves, the others scale proportionally to compensate (`rebalanceNodeTypeBias`, `store/mapStore.ts`). Show the actual percentage next to each slider. "Water"/"Outpost" are Tier 1.5 fork fractions, not Tier 1 shares, and don't participate in that renormalization. "Copy Link" copies `window.location.href` (Section 13b) — the address bar already reflects the current map via `generate()`'s `history.replaceState` call, so this button is a convenience, not the only way to get a working link.
 
 ### View C — Node Detail Panel
 Right sidebar, appears on node select.
@@ -851,7 +860,48 @@ localStorage keys:
   overworld-library     SavedEntry[] JSON — the map library
 ```
 
-On app load: if `overworld-current` exists and its `algorithmVersion` matches the current version, restore it. If the version differs, show a banner: "This map was generated with an older algorithm version. It can still be edited but cannot be re-generated with the same seed."
+On app load: if `overworld-current` exists and its `algorithmVersion` matches the current version, restore it. If the version differs, show a banner: "This map was generated with an older algorithm version. It can still be edited but cannot be re-generated with the same seed." (Not yet built — see Section 16, M5+.)
+
+---
+
+## 13b. Shareable Map Links (`src/core/shareCode.ts`)
+
+A generated map's full `GenerationParams` (seed included — `seed` is already a field of `GenerationParams`, not a separate value) can be encoded into one short, URL-safe **share code** carried as a query parameter, so pasting the address bar reproduces the identical map for anyone. This is an **encoding**, not a hash — it must be decodable back into the exact params, which a one-way hash (SHA-256, etc.) cannot do.
+
+### Byte layout (`PARAMS_CODEC_VERSION = 1`, 15 bytes)
+
+| Bytes | Field | Encoding |
+|---|---|---|
+| 0 | codec version | raw uint8 |
+| 1-4 | `seed` | uint32 |
+| 5 | `targetNodeCount` | raw uint8 (range 20–80 fits) |
+| 6 | `gridCols` \| `gridRows` | low nibble = `gridCols` (6–14), high nibble = `gridRows` (5–12) |
+| 7 | `nodeTypeBias.settlement` | fixed-point 0–255 over [0,1] |
+| 8 | `nodeTypeBias.wilderness` | fixed-point 0–255 over [0,1] — `poi` derived as `1 - settlement - wilderness` on decode, then all three renormalized to sum to exactly 1 (same drift guard `rebalanceNodeTypeBias` already uses) |
+| 9 | `edgeDensity` | exact integer percent 0–100, decoded via `/100` |
+| 10 | `checkRequiredFraction` | exact integer percent 0–100 |
+| 11 | `boundaryFraction` | exact integer percent 0–100 |
+| 12 | `wildernessWaterFraction` | exact integer percent 0–100 |
+| 13 | `settlementOutpostFraction` | exact integer percent 0–100 |
+| 14 | flags | bit 0 = `generateTerrainZones`; bits 1–7 reserved |
+
+Base64url-encoded (`btoa`/`atob` — available identically in modern Node and every current browser, same cross-runtime assumption `crypto.randomUUID()` already relies on — with `+`/`/` swapped to `-`/`_` and `=` padding stripped) → ~20 characters. Carried as the `map` query parameter, e.g. `?map=AQIDBAUG...`.
+
+**Why the five single-slider fractions (`edgeDensity`, `checkRequiredFraction`, `boundaryFraction`, `wildernessWaterFraction`, `settlementOutpostFraction`) use exact integer percent, not generic fixed-point:** the Generation Panel's sliders (Section 11, View B) only ever produce `v/100` for integer `v` 0–100 before committing to `draftParams`. Encoding the integer and decoding via `/100` reconstructs the *exact* float the UI produced — zero precision loss, and no risk of an encoding epsilon flipping one of the many `rng() < fraction` comparisons the generator makes per node/edge. `nodeTypeBias` doesn't get the same treatment because `rebalanceNodeTypeBias`'s proportional rescale produces non-round floats regardless of encoding scheme — lower-stakes anyway, since `nodeTypeBias` only ever feeds a `Math.round(nodeCount × share)` budget calculation (Section 7), not a raw per-node RNG comparison.
+
+### Versioning
+
+`PARAMS_CODEC_VERSION` is a small integer, **not** the same thing as `ALGORITHM_VERSION` (Section 4) — one tracks the encoded byte layout, the other the generator's RNG call sequence. They'll often bump together in practice (a `GenerationParams` shape change tends to trigger both) but are conceptually separate. `decodeParams` keeps a version-keyed decoder registry so every shipped codec version stays decodable — the same "never break an old meaning" discipline `ALGORITHM_VERSION` already follows.
+
+### Load precedence
+
+On app load: **URL share code (if present and valid) → `overworld-current` localStorage restore → prototype-map default.** A share code that fails to decode (malformed, or a `PARAMS_CODEC_VERSION` this build doesn't recognize) falls through the same chain silently (logged, not shown to the user — no banner in this pass; see Section 16, M4.7.1's note on scope).
+
+A hand-edited map's share link reproduces its *origin* generated state, not any subsequent edits — the same limitation `SavedEntry`/library reload already has (Section 3a: `params` records provenance, not a live description of the current node/edge list).
+
+### URL sync
+
+`generate()` and `loadMap()` both update the address bar via `history.replaceState` (never `pushState` — a shared link must not spam browser back/forward history) so the current map is always reflected. A "Copy Link" button (Section 11, View B) copies `window.location.href` directly.
 
 ---
 
@@ -1239,6 +1289,12 @@ Deliverables:
 - `NodeShape.tsx` and `exporter.ts`'s `toSVGString` updated in lockstep for the new shape/color table
 
 Acceptance: a map generated with `generateTerrainZones: true` shows colored terrain washes on the canvas immediately; importing a hand-authored `WorldMap` JSON with `extensions.factions` populated shows faction borders (no Faction *editor* exists yet — this only needs to prove the render path works via import, per `GeneratePanel`'s existing Import JSON); toolbar buttons for Terrain/Factions are greyed out with a tooltip when that extension is empty; toggling a layer never mutates the map (undo stack unaffected); `toSVGString` output includes the same terrain wash / faction territory elements as the live canvas for the same map; new node shapes/colors match Section 10b exactly, including the plains-vs-settlement yellow distinction.
+
+### M4.7.1 — Shareable map links
+
+Deliverables: `core/shareCode.ts` (`encodeParams`/`decodeParams` per Section 13b's byte layout, `PARAMS_CODEC_VERSION`), `store/mapStore.ts` updated (`resolveInitialMap`'s URL → localStorage → prototype-map precedence, `generate()`/`loadMap()` both call `history.replaceState` via a `writeShareCodeToUrl` helper), a "Copy Link" button in `GeneratePanel.tsx`.
+
+Acceptance: generating a map updates the address bar with a `?map=...` share code; opening that URL fresh (or pasting it into a new tab) reproduces the identical map; Copy Link copies the current address bar URL to the clipboard; a malformed or unrecognized-version share code falls through silently to the existing localStorage/prototype-map chain (no crash, no user-facing error — that banner is explicitly deferred); `shareCode.test.ts` covers round-trip correctness (exact for seed/targetNodeCount/gridCols/gridRows/flags/the five integer-percent fraction fields, epsilon-bounded and sum-to-1 for `nodeTypeBias`) and rejects malformed/unsupported-version input without throwing.
 
 ### M5 — Edit panels
 Deliverables: `NodePanel.tsx`, `EdgePanel.tsx`, `DirectionPicker.tsx`, `NodeTypeSelect.tsx`

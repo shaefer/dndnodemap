@@ -4,6 +4,7 @@ import { centroid, convexHull, padHull } from "../core/geometry";
 import { edgesForNode } from "../core/graph";
 import { generateMap } from "../core/generator";
 import { buildPrototypeMap } from "../core/prototypeMap";
+import { decodeParams, encodeParams } from "../core/shareCode";
 import { isOutpostBranch, isWaterBranch } from "../core/taxonomy";
 import { validateMap, type Violation } from "../core/validator";
 import type { CompassDir, GenerationParams, MapEdge, MapNode, WorldMap } from "../types/map";
@@ -55,6 +56,47 @@ function persistMap(map: WorldMap): void {
   } catch {
     // ignore — see loadPersistedMap comment
   }
+}
+
+// Shareable links (spec Section 13b). `window`/`location`/`history` are all
+// undefined in Vitest's "node" test environment, same reason localStorage
+// access above is guarded — every access here is best-effort, never a
+// correctness requirement.
+const SHARE_CODE_PARAM = "map";
+
+function readShareCodeFromUrl(): string | null {
+  try {
+    return new URLSearchParams(window.location.search).get(SHARE_CODE_PARAM);
+  } catch {
+    return null;
+  }
+}
+
+// Called after generate()/loadMap() so the address bar always reflects the
+// current map. Uses replaceState, never pushState — a shared link must not
+// spam browser back/forward history.
+function writeShareCodeToUrl(params: GenerationParams): void {
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set(SHARE_CODE_PARAM, encodeParams(params));
+    window.history.replaceState(null, "", url.toString());
+  } catch {
+    // ignore — URL sync is a convenience, not a correctness requirement
+  }
+}
+
+// Load precedence (spec Section 13b): a URL share code, if present and
+// valid, wins over the localStorage restore, which wins over the prototype
+// map default. A malformed or unrecognized-version code falls through
+// silently (logged, not shown to the user — no banner in this pass).
+function resolveInitialMap(): WorldMap {
+  const code = readShareCodeFromUrl();
+  if (code) {
+    const decoded = decodeParams(code);
+    if (decoded.ok) return generateMap(decoded.params);
+    console.warn(`Couldn't load shared map link: ${decoded.error}`);
+  }
+  return loadPersistedMap() ?? buildPrototypeMap();
 }
 
 export interface NodeExit {
@@ -165,7 +207,7 @@ interface MapState {
   selectEdge: (id: string | null) => void;
 }
 
-const initialMap = loadPersistedMap() ?? buildPrototypeMap();
+const initialMap = resolveInitialMap();
 
 // Full store per spec Section 12. Edit actions (updateNode/deleteNode/etc.)
 // and undo/redo have no UI calling them yet — NodePanel/EdgePanel are M5 —
@@ -183,11 +225,17 @@ export const useMapStore = create<MapState>((set, get) => ({
   generate: () => {
     const map = generateMap(get().draftParams);
     persistMap(map);
+    writeShareCodeToUrl(map.params);
     set({ map, violations: validateMap(map), history: [], future: [], selectedNodeId: null, selectedEdgeId: null });
   },
 
   loadMap: (map) => {
     persistMap(map);
+    // A hand-edited map's share link reproduces its origin generated state,
+    // not any subsequent edits — the same limitation SavedEntry/library
+    // reload already has (params records provenance, not a live description
+    // of the current node/edge list).
+    writeShareCodeToUrl(map.params);
     set({
       map,
       violations: validateMap(map),
