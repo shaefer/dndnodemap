@@ -5,6 +5,7 @@ import {
   REGION_PRESETS,
   rebalanceShares,
   selectExitsForNode,
+  selectMatchingRegionPresetId,
   useMapStore,
 } from "../../src/store/mapStore";
 import { buildPrototypeMap } from "../../src/core/prototypeMap";
@@ -20,13 +21,15 @@ function resetStore() {
     history: [],
     future: [],
     draftParams: { ...DEFAULT_GENERATION_PARAMS },
+    seedLocked: false,
   });
 }
 
 describe("mapStore", () => {
   beforeEach(resetStore);
 
-  it("generate() uses draftParams and produces a valid map with no violations", () => {
+  it("generate() uses draftParams (other than seed) and produces a valid map with no violations", () => {
+    useMapStore.getState().setSeedLocked(true); // isolate this test from generate()'s own seed-randomizing behavior
     useMapStore.getState().updateDraftParam("seed", 777);
     useMapStore.getState().generate();
     const state = useMapStore.getState();
@@ -36,19 +39,46 @@ describe("mapStore", () => {
     expect(state.future).toEqual([]);
   });
 
-  it("generate() with the same draftParams twice produces structurally identical maps", () => {
+  it("generate() draws a fresh random seed every call by default — every click is a new map", () => {
+    useMapStore.getState().updateDraftParam("seed", 42);
+    useMapStore.getState().generate();
+    const firstSeed = useMapStore.getState().map.params.seed;
+
+    useMapStore.getState().generate();
+    const secondSeed = useMapStore.getState().map.params.seed;
+
+    expect(secondSeed).not.toBe(firstSeed);
+    expect(secondSeed).not.toBe(42);
+    // draftParams.seed is kept in sync with whatever seed was actually used.
+    expect(useMapStore.getState().draftParams.seed).toBe(secondSeed);
+  });
+
+  it("setSeedLocked(true) makes generate() reuse the same seed across calls", () => {
+    useMapStore.getState().setSeedLocked(true);
     useMapStore.getState().updateDraftParam("seed", 42);
     useMapStore.getState().generate();
     const first = useMapStore.getState().map;
+    expect(first.params.seed).toBe(42);
 
-    useMapStore.getState().updateDraftParam("seed", 42);
     useMapStore.getState().generate();
     const second = useMapStore.getState().map;
+    expect(second.params.seed).toBe(42);
 
     expect(second.nodes.map((n) => ({ label: n.label, type: n.type, gx: n.gx, gy: n.gy }))).toEqual(
       first.nodes.map((n) => ({ label: n.label, type: n.type, gx: n.gx, gy: n.gy }))
     );
     expect(second.edges.length).toBe(first.edges.length);
+  });
+
+  it("setSeedLocked(false) (the default) does not reuse the seed even if re-enabled after a lock", () => {
+    useMapStore.getState().setSeedLocked(true);
+    useMapStore.getState().updateDraftParam("seed", 42);
+    useMapStore.getState().generate();
+    expect(useMapStore.getState().map.params.seed).toBe(42);
+
+    useMapStore.getState().setSeedLocked(false);
+    useMapStore.getState().generate();
+    expect(useMapStore.getState().map.params.seed).not.toBe(42);
   });
 
   it("updateDraftParam updates a single field without touching the others", () => {
@@ -171,6 +201,31 @@ describe("applyRegionPreset / randomizeRegionPreset", () => {
         JSON.stringify(REGION_PRESETS[id].biomeMix) === JSON.stringify(biomeMix)
     );
     expect(matches).toBe(true);
+  });
+});
+
+describe("selectMatchingRegionPresetId", () => {
+  beforeEach(resetStore);
+
+  it("identifies an exact preset match", () => {
+    useMapStore.getState().applyRegionPreset("frost");
+    expect(selectMatchingRegionPresetId(useMapStore.getState().draftParams)).toBe("frost");
+  });
+
+  it("returns null once a biome slider has been dragged away from the applied preset", () => {
+    useMapStore.getState().applyRegionPreset("frost");
+    const rebalanced = rebalanceShares(useMapStore.getState().draftParams.biomeMix, "jungle", 0.9);
+    useMapStore.getState().updateDraftParam("biomeMix", rebalanced);
+    expect(selectMatchingRegionPresetId(useMapStore.getState().draftParams)).toBeNull();
+  });
+
+  it("tolerates tiny floating-point drift within the match epsilon", () => {
+    useMapStore.getState().applyRegionPreset("frost");
+    const { biomeMix } = useMapStore.getState().draftParams;
+    const nudged = { ...biomeMix, forest: biomeMix.forest + 0.001 };
+    expect(selectMatchingRegionPresetId({ biomeMix: nudged, wildernessWaterFraction: REGION_PRESETS.frost.wildernessWaterFraction })).toBe(
+      "frost"
+    );
   });
 });
 

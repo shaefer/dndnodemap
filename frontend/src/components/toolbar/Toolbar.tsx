@@ -5,6 +5,10 @@ interface ToolbarProps {
   hasFactionData: boolean;
   onToggleTerrain: () => void;
   onToggleFactions: () => void;
+  zoomPercent: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onZoomReset: () => void;
 }
 
 const buttonStyle = (active: boolean, disabled: boolean): React.CSSProperties => ({
@@ -29,9 +33,22 @@ export function Toolbar({
   hasFactionData,
   onToggleTerrain,
   onToggleFactions,
+  zoomPercent,
+  onZoomIn,
+  onZoomOut,
+  onZoomReset,
 }: ToolbarProps) {
   return (
-    <div style={{ display: "flex", gap: 6, padding: "6px 10px", borderBottom: "1px solid #eee", background: "#fff" }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "6px 10px",
+        borderBottom: "1px solid #eee",
+        background: "#fff",
+      }}
+    >
       <button type="button" disabled style={buttonStyle(true, true)}>
         ≡ Edges
       </button>
@@ -56,6 +73,22 @@ export function Toolbar({
       >
         ⚑ Factions
       </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: "auto" }}>
+        <button type="button" onClick={onZoomOut} title="Zoom out" style={buttonStyle(false, false)}>
+          −
+        </button>
+        <button
+          type="button"
+          onClick={onZoomReset}
+          title="Reset zoom to 100%"
+          style={{ ...buttonStyle(false, false), minWidth: 48, textAlign: "center" }}
+        >
+          {zoomPercent}%
+        </button>
+        <button type="button" onClick={onZoomIn} title="Zoom in" style={buttonStyle(false, false)}>
+          +
+        </button>
+      </div>
     </div>
   );
 }

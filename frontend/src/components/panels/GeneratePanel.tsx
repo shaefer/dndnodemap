@@ -4,6 +4,7 @@ import {
   REGION_PRESET_IDS,
   REGION_PRESETS,
   rebalanceShares,
+  selectMatchingRegionPresetId,
   useMapStore,
   type RegionPresetId,
 } from "../../store/mapStore";
@@ -61,6 +62,8 @@ export function GeneratePanel() {
   const loadMap = useMapStore((s) => s.loadMap);
   const updateDraftParam = useMapStore((s) => s.updateDraftParam);
   const randomizeSeed = useMapStore((s) => s.randomizeSeed);
+  const seedLocked = useMapStore((s) => s.seedLocked);
+  const setSeedLocked = useMapStore((s) => s.setSeedLocked);
   const applyRegionPreset = useMapStore((s) => s.applyRegionPreset);
   const randomizeRegionPreset = useMapStore((s) => s.randomizeRegionPreset);
   const applyRecommendedGridSize = useMapStore((s) => s.applyRecommendedGridSize);
@@ -241,16 +244,13 @@ export function GeneratePanel() {
         <div style={{ fontSize: 11, color: "#888", textTransform: "uppercase", marginBottom: 6 }}>Biome mix</div>
         <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
           <select
-            defaultValue=""
+            value={selectMatchingRegionPresetId(draftParams) ?? "custom"}
             onChange={(e) => {
-              if (e.target.value) applyRegionPreset(e.target.value as RegionPresetId);
-              e.target.value = "";
+              if (e.target.value !== "custom") applyRegionPreset(e.target.value as RegionPresetId);
             }}
             style={{ flex: 1, fontSize: 12 }}
           >
-            <option value="" disabled>
-              Region preset…
-            </option>
+            <option value="custom">Custom mix</option>
             {REGION_PRESET_IDS.map((id) => (
               <option key={id} value={id}>
                 {REGION_PRESETS[id].label}
@@ -292,12 +292,17 @@ export function GeneratePanel() {
             Randomize
           </button>
         </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+          <input type="checkbox" checked={seedLocked} onChange={(e) => setSeedLocked(e.target.checked)} />
+          Lock current seed
+        </label>
       </div>
 
       <button
         type="button"
         onClick={generate}
         style={{ width: "100%", padding: "8px 0", fontSize: 13, fontWeight: 600, marginBottom: 8 }}
+        title={seedLocked ? "Seed is locked — regenerates with the same seed" : "Generates a new map with a fresh random seed"}
       >
         Generate
       </button>

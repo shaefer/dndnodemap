@@ -423,7 +423,7 @@ export function shuffle<T>(rng: RngFn, arr: T[]): void {
 
 **Contract:** The generator calls `makeRng(params.seed)` exactly once and passes the resulting `RngFn` through every sub-function. Any code that needs randomness takes `rng: RngFn` as a parameter — it never calls `makeRng` itself. This guarantees that same seed + same params = identical output and that the call sequence is fully deterministic.
 
-**Seed format:** Seeds are 32-bit unsigned integers (0–4294967295). The UI generates a random seed via `Math.floor(Math.random() * 4294967296)` on first load and on "Randomize" — this is the only legitimate use of `Math.random()` in the app.
+**Seed format:** Seeds are 32-bit unsigned integers (0–4294967295). The UI generates a random seed via `Math.floor(Math.random() * 4294967296)` on first load, on "Randomize," and — unless "Lock current seed" is checked (Section 11, View B) — on every "Generate" click too. This is the only legitimate use of `Math.random()` in the app.
 
 **Algorithm version:** The constant `ALGORITHM_VERSION = "1.0.0"` in `generator.ts` must be incremented (minor) whenever the generator's RNG call sequence changes in a way that makes a given seed produce different output. Major version = breaking change to the data model. Document the version changelog in `CHANGELOG.md`.
 
@@ -787,6 +787,8 @@ Toolbar area gets four small toggle buttons, always visible:
 ```
 Edges and Nodes are always on (buttons shown but disabled/locked). Terrain and Factions are off by default, clickable. When a layer has no data (extensions are empty), the button is greyed out with a tooltip "No terrain zones defined yet."
 
+The same Toolbar also carries zoom controls, right-aligned: `[−] [100%] [+]`. `−`/`+` step the canvas zoom by a fixed factor centered on the canvas's visible center; the `100%` control is itself a button that shows the current zoom percentage and resets pan+zoom to their defaults when clicked. This is a fixed-step complement to the canvas's own continuous wheel/trackpad zoom (View A, Section 11) — not a replacement for it.
+
 ---
 
 ## 11. UI Views
@@ -797,6 +799,7 @@ Edges and Nodes are always on (buttons shown but disabled/locked). Terrain and F
 - Double-click empty space → add node at that position
 - Drag node to reposition (updates gx/gy, triggers re-layout of connected edge labels)
 - Selected node/edge gets a highlight ring
+- Wheel/trackpad zoom scales its factor by the actual scroll delta (clamped), not a flat per-event jump — a light trackpad nudge zooms lightly, a hard mouse-wheel notch zooms more, in both directions around the cursor. The Toolbar (Section 10b) carries explicit `−`/`100%`/`+` zoom controls (fixed-step, centered on the canvas) alongside it, so a precise zoom level is reachable without fighting continuous scroll input; clicking the `100%` control resets pan and zoom together.
 
 ### View B — Generation Panel (sidebar, not modal)
 Controls read/write the store's `draftParams` directly via `updateDraftParam` (Section 12 is authoritative on this — not a parallel local draft, superseding this view's earlier "local state" phrasing; see `CLAUDE.md`'s M4 notes). Generate button commits and calls the store.
@@ -815,7 +818,7 @@ Controls read/write the store's `draftParams` directly via `updateDraftParam` (S
 | Boundary containment | Slider | Open→Closed | 70% |
 | Water (of Wilderness) | Slider | 0–100% | 15% |
 | Outpost (of Settlement) | Slider | 0–100% | 25% |
-| Region preset | Select | 6 named presets | — |
+| Region preset | Select | 6 named presets + "Custom mix" | matches whichever preset (if any) the current `biomeMix`/`wildernessWaterFraction` equals |
 | Randomize region | Button | — | — |
 | Forest | Slider | 0–100% | 30% |
 | Swamp | Slider | 0–100% | 15% |
@@ -826,12 +829,15 @@ Controls read/write the store's `draftParams` directly via `updateDraftParam` (S
 | Generate terrain zones | Checkbox | — | off |
 | Seed | Number input | 0–4294967295 | random on load |
 | Randomize seed | Button | — | — |
+| Lock current seed | Checkbox | — | off |
 | Generate | Button | — | — |
 | Download JSON | Button | — | — |
 | Import JSON | Button | — | — |
 | Copy Link | Button | — | — |
 
-The three node type sliders (Settlements/Wilderness/Points of Interest — Tier 1, spec Section 3c) must normalize to sum to 1.0 on change — when one moves, the others scale proportionally to compensate (`rebalanceShares`, `store/mapStore.ts` — generalized from what was originally `rebalanceNodeTypeBias` once the six biome sliders needed the identical behavior). Show the actual percentage next to each slider. "Water"/"Outpost" are Tier 1.5 fork fractions, not Tier 1 shares, and don't participate in that renormalization. The six biome sliders (Forest/Swamp/Plains/Desert/Tundra/Jungle — `biomeMix`, Section 3a) renormalize among themselves the same way, independently of the Tier 1 three. "Region preset" (Section 7c) loads a named preset's `biomeMix` + water fraction into the sliders in one action; "Randomize region" does the same with a randomly-chosen preset. Neither is a persisted "mode" — dragging any biome slider afterward is just a new `biomeMix`, same as always. "Copy Link" copies `window.location.href` (Section 13b) — the address bar already reflects the current map via `generate()`'s `history.replaceState` call, so this button is a convenience, not the only way to get a working link.
+The three node type sliders (Settlements/Wilderness/Points of Interest — Tier 1, spec Section 3c) must normalize to sum to 1.0 on change — when one moves, the others scale proportionally to compensate (`rebalanceShares`, `store/mapStore.ts` — generalized from what was originally `rebalanceNodeTypeBias` once the six biome sliders needed the identical behavior). Show the actual percentage next to each slider. "Water"/"Outpost" are Tier 1.5 fork fractions, not Tier 1 shares, and don't participate in that renormalization. The six biome sliders (Forest/Swamp/Plains/Desert/Tundra/Jungle — `biomeMix`, Section 3a) renormalize among themselves the same way, independently of the Tier 1 three. "Region preset" (Section 7c) loads a named preset's `biomeMix` + water fraction into the sliders in one action; "Randomize region" does the same with a randomly-chosen preset. Neither is a persisted "mode" field — the select's displayed value is instead *derived* every render (`selectMatchingRegionPresetId`, `store/mapStore.ts`, epsilon-compared against each registered preset) from whatever `biomeMix`/`wildernessWaterFraction` currently are, so it always shows the preset that's actually active (including the one randomly chosen at load) and falls back to a real "Custom mix" option — not a disabled placeholder — the moment a biome slider is dragged away from it. "Copy Link" copies `window.location.href` (Section 13b) — the address bar already reflects the current map via `generate()`'s `history.replaceState` call, so this button is a convenience, not the only way to get a working link.
+
+**Generate always produces a new map; "Lock current seed" is the explicit opt-out.** `generate()` draws a fresh random seed on every click by default — same as loading the page or hitting "Randomize seed" — so repeatedly clicking Generate never silently repeats the last output. Checking "Lock current seed" flips this: `generate()` reuses whatever seed is currently in `draftParams` instead of randomizing it, so the user can tweak other sliders and regenerate variations against one fixed seed on purpose. The "Randomize seed" button is unaffected by the lock either way — it always sets a new random seed into `draftParams` immediately; combined with the lock, that's how a user deliberately picks a *new* seed to hold rather than the one they started with.
 
 ### View C — Node Detail Panel
 Right sidebar, appears on node select.
@@ -974,7 +980,7 @@ A hand-edited map's share link reproduces its *origin* generated state, not any 
 
 ### URL sync
 
-`generate()` and `loadMap()` both update the address bar via `history.replaceState` (never `pushState` — a shared link must not spam browser back/forward history) so the current map is always reflected. A "Copy Link" button (Section 11, View B) copies `window.location.href` directly.
+`generate()` and `loadMap()` both update the address bar via `history.replaceState` (never `pushState` — a shared link must not spam browser back/forward history) so the current map is always reflected. So does the very first module load: `writeShareCodeToUrl` runs once immediately after `resolveInitialMap()` resolves the initial map (whichever of the three precedence sources it came from), not only after a subsequent `generate()`/`loadMap()` call — so a plain page visit (no `?map=` yet, e.g. a localStorage restore or the prototype default) still leaves a copy-able, reproduce-this-exact-map link in the bar immediately, and pasting an old-codec-version share code gets silently upgraded to the current codec's encoding of those same decoded params. This is a single `history.replaceState` call at module-load time (never a navigation, and nothing re-triggers it), so it cannot create a refresh loop. A "Copy Link" button (Section 11, View B) copies `window.location.href` directly.
 
 ---
 

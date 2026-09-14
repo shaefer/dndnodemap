@@ -43,6 +43,29 @@ function randomRegionPresetId(): RegionPresetId {
   return REGION_PRESET_IDS[Math.floor(Math.random() * REGION_PRESET_IDS.length)];
 }
 
+// Drives the Region Preset dropdown's displayed value: which (if any)
+// registered preset the current biomeMix/wildernessWaterFraction actually
+// matches, so the dropdown always reflects reality (the preset that was
+// randomly chosen at load, one explicitly picked, or "Custom" once a biome
+// slider has been dragged away from it) instead of always showing a bare
+// placeholder. Epsilon-compared, not exact — floating-point rescale (
+// rebalanceShares) or a share-code round-trip can leave a value a hair off
+// an exact preset match even when nothing meaningfully changed.
+const PRESET_MATCH_EPSILON = 0.005;
+
+export function selectMatchingRegionPresetId(
+  params: Pick<GenerationParams, "biomeMix" | "wildernessWaterFraction">
+): RegionPresetId | null {
+  for (const id of REGION_PRESET_IDS) {
+    const preset = REGION_PRESETS[id];
+    if (Math.abs(params.wildernessWaterFraction - preset.wildernessWaterFraction) > PRESET_MATCH_EPSILON) continue;
+    const biomeKeys = Object.keys(preset.biomeMix) as (keyof GenerationParams["biomeMix"])[];
+    const matches = biomeKeys.every((k) => Math.abs(params.biomeMix[k] - preset.biomeMix[k]) <= PRESET_MATCH_EPSILON);
+    if (matches) return id;
+  }
+  return null;
+}
+
 const initialRegionPreset = REGION_PRESETS[randomRegionPresetId()];
 const initialGridSize = recommendedGridDimensions(49);
 
@@ -207,6 +230,11 @@ interface MapState {
   future: WorldMap[];
 
   draftParams: GenerationParams;
+  // When false (the default), generate() draws a fresh random seed every
+  // click — a Generate click always produces a new map, not a repeat of the
+  // last one. Locking is the explicit opt-out: "keep this seed" so the user
+  // can tweak other params and regenerate variations against the same one.
+  seedLocked: boolean;
 
   generate: () => void;
   // Replaces the current map wholesale (JSON import). Not in spec Section
@@ -216,6 +244,7 @@ interface MapState {
   loadMap: (map: WorldMap) => void;
   updateDraftParam: <K extends keyof GenerationParams>(key: K, value: GenerationParams[K]) => void;
   randomizeSeed: () => void;
+  setSeedLocked: (locked: boolean) => void;
   // Both set biomeMix + wildernessWaterFraction on draftParams in one action
   // (spec Section 7c) — a UI/store convenience, not a generator concept; the
   // generator only ever reads the resulting biomeMix, same as any other
@@ -245,6 +274,14 @@ interface MapState {
 }
 
 const initialMap = resolveInitialMap();
+// Populate the address bar with the first map's share code on first load too
+// — not just after a subsequent generate()/loadMap() — so a plain visit (no
+// `?map=` yet, e.g. restoring from localStorage, or the prototype default)
+// still leaves a copy-able link in the bar immediately. Runs exactly once at
+// module load (a top-level statement, not inside a React effect), and
+// writeShareCodeToUrl only ever calls history.replaceState — never a
+// navigation or reload — so this can't create a refresh loop.
+writeShareCodeToUrl(initialMap.params);
 
 // Full store per spec Section 12. Edit actions (updateNode/deleteNode/etc.)
 // and undo/redo have no UI calling them yet — NodePanel/EdgePanel are M5 —
@@ -258,13 +295,24 @@ export const useMapStore = create<MapState>((set, get) => ({
   history: [],
   future: [],
   draftParams: { ...DEFAULT_GENERATION_PARAMS },
+  seedLocked: false,
 
-  generate: () => {
-    const map = generateMap(get().draftParams);
-    persistMap(map);
-    writeShareCodeToUrl(map.params);
-    set({ map, violations: validateMap(map), history: [], future: [], selectedNodeId: null, selectedEdgeId: null });
-  },
+  generate: () =>
+    set((state) => {
+      const params = state.seedLocked ? state.draftParams : { ...state.draftParams, seed: randomSeed() };
+      const map = generateMap(params);
+      persistMap(map);
+      writeShareCodeToUrl(map.params);
+      return {
+        map,
+        draftParams: params,
+        violations: validateMap(map),
+        history: [],
+        future: [],
+        selectedNodeId: null,
+        selectedEdgeId: null,
+      };
+    }),
 
   loadMap: (map) => {
     persistMap(map);
@@ -287,6 +335,8 @@ export const useMapStore = create<MapState>((set, get) => ({
   updateDraftParam: (key, value) => set((state) => ({ draftParams: { ...state.draftParams, [key]: value } })),
 
   randomizeSeed: () => set((state) => ({ draftParams: { ...state.draftParams, seed: randomSeed() } })),
+
+  setSeedLocked: (locked) => set({ seedLocked: locked }),
 
   applyRegionPreset: (id) =>
     set((state) => {

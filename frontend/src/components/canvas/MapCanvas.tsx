@@ -15,6 +15,20 @@ const SVG_H = 800;
 const MARGIN = { l: 60, r: 60, t: 40, b: 40 };
 const MIN_SCALE = 0.3;
 const MAX_SCALE = 4;
+// Wheel/trackpad zoom was reported as "too sensitive" — the old handler
+// applied a flat 12%/11% multiplicative jump per wheel *event*, not per unit
+// of scroll. A trackpad fires many small-deltaY events per physical gesture
+// (unlike a notched mouse wheel's few large-deltaY ones), so that flat jump
+// compounded into a runaway zoom for exactly the input device where fine
+// control matters most. Scaling the exponent by the actual (clamped) deltaY
+// makes a light trackpad nudge a light zoom step, while a hard mouse-wheel
+// notch still zooms a sensible amount.
+const WHEEL_ZOOM_SENSITIVITY = 0.0015;
+const WHEEL_DELTA_CLAMP = 100;
+// Discrete step for the +/- zoom buttons (Toolbar) — independent of wheel
+// sensitivity, since a button click should always move a fixed, predictable
+// amount.
+const BUTTON_ZOOM_STEP = 1.25;
 
 interface Transform {
   x: number;
@@ -83,19 +97,44 @@ export function MapCanvas() {
     };
   }
 
-  function handleWheel(e: WheelEvent<HTMLDivElement>) {
-    e.preventDefault();
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const factor = e.deltaY < 0 ? 1.12 : 0.89;
-    const rect = wrap.getBoundingClientRect();
-    const cx = e.clientX - rect.left;
-    const cy = e.clientY - rect.top;
+  // Shared by wheel zoom and the +/- toolbar buttons: apply a zoom factor
+  // around a fixed point (cx, cy in wrapper-local coordinates) so whatever's
+  // under that point stays under it as the scale changes.
+  function zoomAround(cx: number, cy: number, factor: number) {
     setTransform((t) => {
       const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, t.scale * factor));
       const applied = scale / t.scale;
       return { scale, x: cx - applied * (cx - t.x), y: cy - applied * (cy - t.y) };
     });
+  }
+
+  function handleWheel(e: WheelEvent<HTMLDivElement>) {
+    e.preventDefault();
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const rect = wrap.getBoundingClientRect();
+    const delta = Math.max(-WHEEL_DELTA_CLAMP, Math.min(WHEEL_DELTA_CLAMP, e.deltaY));
+    const factor = Math.exp(-delta * WHEEL_ZOOM_SENSITIVITY);
+    zoomAround(e.clientX - rect.left, e.clientY - rect.top, factor);
+  }
+
+  function zoomAtCenter(factor: number) {
+    const wrap = wrapRef.current;
+    const cx = wrap ? wrap.clientWidth / 2 : SVG_W / 2;
+    const cy = wrap ? wrap.clientHeight / 2 : SVG_H / 2;
+    zoomAround(cx, cy, factor);
+  }
+
+  function handleZoomIn() {
+    zoomAtCenter(BUTTON_ZOOM_STEP);
+  }
+
+  function handleZoomOut() {
+    zoomAtCenter(1 / BUTTON_ZOOM_STEP);
+  }
+
+  function handleZoomReset() {
+    setTransform({ x: 0, y: 0, scale: 1 });
   }
 
   function handleNodeEnter(node: MapNode, e: MouseEvent<SVGGElement>) {
@@ -122,6 +161,10 @@ export function MapCanvas() {
         hasFactionData={factions.length > 0}
         onToggleTerrain={() => setTerrainVisible((v) => !v)}
         onToggleFactions={() => setFactionsVisible((v) => !v)}
+        zoomPercent={Math.round(transform.scale * 100)}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onZoomReset={handleZoomReset}
       />
       <div
         ref={wrapRef}
