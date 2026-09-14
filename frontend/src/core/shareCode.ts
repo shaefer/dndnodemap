@@ -11,7 +11,7 @@ import type { GenerationParams } from "../types/map";
 // GenerationParams's shape changes in a way the byte layout must reflect —
 // see DECODERS below for the "never break an old link" discipline this
 // enables.
-export const PARAMS_CODEC_VERSION = 2;
+export const PARAMS_CODEC_VERSION = 3;
 
 export type DecodeResult =
   | { ok: true; params: GenerationParams }
@@ -49,24 +49,9 @@ function renormalizeTriple(a: number, b: number, c: number): [number, number, nu
 // 15 bytes. Predates biomeMix (M4.7.2) — decodeV1 fills a sensible default
 // (Temperate Mixed's mix) so old links stay decodable under the current
 // GenerationParams shape. See spec Section 13b for the full field table.
+// encodeV1 itself is gone (encodeParams has moved on to encodeV3) — only the
+// decoder needs to live forever, per the "never break an old link" rule.
 const V1_LENGTH = 15;
-
-function encodeV1(params: GenerationParams): Uint8Array {
-  const bytes = new Uint8Array(V1_LENGTH);
-  bytes[0] = 1;
-  encodeSeed(bytes, 1, params);
-  bytes[5] = clamp(Math.round(params.targetNodeCount), 0, 255);
-  bytes[6] = (clamp(Math.round(params.gridCols), 0, 15) & 0x0f) | ((clamp(Math.round(params.gridRows), 0, 15) & 0x0f) << 4);
-  bytes[7] = clamp(Math.round(params.nodeTypeBias.settlement * 255), 0, 255);
-  bytes[8] = clamp(Math.round(params.nodeTypeBias.wilderness * 255), 0, 255);
-  bytes[9] = clamp(Math.round(params.edgeDensity * 100), 0, 100);
-  bytes[10] = clamp(Math.round(params.checkRequiredFraction * 100), 0, 100);
-  bytes[11] = clamp(Math.round(params.boundaryFraction * 100), 0, 100);
-  bytes[12] = clamp(Math.round(params.wildernessWaterFraction * 100), 0, 100);
-  bytes[13] = clamp(Math.round(params.settlementOutpostFraction * 100), 0, 100);
-  bytes[14] = params.generateTerrainZones ? 1 : 0;
-  return bytes;
-}
 
 function decodeV1(bytes: Uint8Array): DecodeResult {
   if (bytes.length !== V1_LENGTH) {
@@ -100,19 +85,9 @@ function decodeV1(bytes: Uint8Array): DecodeResult {
 
 // --- codec v2 ------------------------------------------------------------------
 // 20 bytes = v1's 15 + 5 for biomeMix (M4.7.2). See spec Section 13b.
+// encodeV2 itself is gone (superseded by encodeV3) — only the decoder needs
+// to live forever, per the "never break an old link" rule.
 const V2_LENGTH = 20;
-
-function encodeV2(params: GenerationParams): Uint8Array {
-  const bytes = new Uint8Array(V2_LENGTH);
-  bytes.set(encodeV1(params).subarray(1), 1); // reuse v1's byte-1-through-14 layout verbatim
-  bytes[0] = 2;
-  bytes[15] = clamp(Math.round(params.biomeMix.forest * 255), 0, 255);
-  bytes[16] = clamp(Math.round(params.biomeMix.swamp * 255), 0, 255);
-  bytes[17] = clamp(Math.round(params.biomeMix.plains * 255), 0, 255);
-  bytes[18] = clamp(Math.round(params.biomeMix.desert * 255), 0, 255);
-  bytes[19] = clamp(Math.round(params.biomeMix.tundra * 255), 0, 255);
-  return bytes;
-}
 
 function decodeV2(bytes: Uint8Array): DecodeResult {
   if (bytes.length !== V2_LENGTH) {
@@ -143,6 +118,84 @@ function decodeV2(bytes: Uint8Array): DecodeResult {
   return { ok: true, params: { ...v1Result.params, biomeMix } };
 }
 
+// --- codec v3 ------------------------------------------------------------------
+// 21 bytes. M4.7.3's grid-sizing-scaled-to-node-count change raised
+// gridCols/gridRows' practical range above 15 (recommendedGridDimensions(80)
+// = 18) — v1/v2's single byte with a 4-bit nibble per field (max 15) can no
+// longer represent that, so v3 gives each its own full byte instead. Every
+// other field keeps v2's exact encoding, just shifted to make room.
+const V3_LENGTH = 21;
+
+function encodeV3(params: GenerationParams): Uint8Array {
+  const bytes = new Uint8Array(V3_LENGTH);
+  bytes[0] = 3;
+  encodeSeed(bytes, 1, params);
+  bytes[5] = clamp(Math.round(params.targetNodeCount), 0, 255);
+  bytes[6] = clamp(Math.round(params.gridCols), 0, 255);
+  bytes[7] = clamp(Math.round(params.gridRows), 0, 255);
+  bytes[8] = clamp(Math.round(params.nodeTypeBias.settlement * 255), 0, 255);
+  bytes[9] = clamp(Math.round(params.nodeTypeBias.wilderness * 255), 0, 255);
+  bytes[10] = clamp(Math.round(params.edgeDensity * 100), 0, 100);
+  bytes[11] = clamp(Math.round(params.checkRequiredFraction * 100), 0, 100);
+  bytes[12] = clamp(Math.round(params.boundaryFraction * 100), 0, 100);
+  bytes[13] = clamp(Math.round(params.wildernessWaterFraction * 100), 0, 100);
+  bytes[14] = clamp(Math.round(params.settlementOutpostFraction * 100), 0, 100);
+  bytes[15] = params.generateTerrainZones ? 1 : 0;
+  bytes[16] = clamp(Math.round(params.biomeMix.forest * 255), 0, 255);
+  bytes[17] = clamp(Math.round(params.biomeMix.swamp * 255), 0, 255);
+  bytes[18] = clamp(Math.round(params.biomeMix.plains * 255), 0, 255);
+  bytes[19] = clamp(Math.round(params.biomeMix.desert * 255), 0, 255);
+  bytes[20] = clamp(Math.round(params.biomeMix.tundra * 255), 0, 255);
+  return bytes;
+}
+
+function decodeV3(bytes: Uint8Array): DecodeResult {
+  if (bytes.length !== V3_LENGTH) {
+    return { ok: false, error: `Expected ${V3_LENGTH} bytes for codec v3, got ${bytes.length}.` };
+  }
+
+  const [settlement, wilderness, poi] = renormalizeTriple(
+    bytes[8] / 255,
+    bytes[9] / 255,
+    1 - bytes[8] / 255 - bytes[9] / 255
+  );
+
+  const forest = bytes[16] / 255;
+  const swamp = bytes[17] / 255;
+  const plains = bytes[18] / 255;
+  const desert = bytes[19] / 255;
+  const tundra = bytes[20] / 255;
+  const rawJungle = Math.max(0, 1 - forest - swamp - plains - desert - tundra);
+  const sum = forest + swamp + plains + desert + tundra + rawJungle;
+  const biomeMix =
+    sum > 0
+      ? {
+          forest: forest / sum,
+          swamp: swamp / sum,
+          plains: plains / sum,
+          desert: desert / sum,
+          tundra: tundra / sum,
+          jungle: rawJungle / sum,
+        }
+      : { forest: 1 / 6, swamp: 1 / 6, plains: 1 / 6, desert: 1 / 6, tundra: 1 / 6, jungle: 1 / 6 };
+
+  const params: GenerationParams = {
+    seed: decodeSeed(bytes, 1),
+    targetNodeCount: bytes[5],
+    gridCols: bytes[6],
+    gridRows: bytes[7],
+    nodeTypeBias: { settlement, wilderness, poi },
+    wildernessWaterFraction: bytes[13] / 100,
+    settlementOutpostFraction: bytes[14] / 100,
+    checkRequiredFraction: bytes[11] / 100,
+    edgeDensity: bytes[10] / 100,
+    boundaryFraction: bytes[12] / 100,
+    generateTerrainZones: (bytes[15] & 1) === 1,
+    biomeMix,
+  };
+  return { ok: true, params };
+}
+
 // Every shipped codec version stays decodable forever — the direct analog of
 // ALGORITHM_VERSION's own "never break an old meaning" discipline. Add a new
 // entry here (and a new encodeVN) when GenerationParams's shape changes;
@@ -150,6 +203,7 @@ function decodeV2(bytes: Uint8Array): DecodeResult {
 const DECODERS: Record<number, (bytes: Uint8Array) => DecodeResult> = {
   1: decodeV1,
   2: decodeV2,
+  3: decodeV3,
 };
 
 // --- base64url + public API ---------------------------------------------------
@@ -177,7 +231,7 @@ function fromBase64Url(code: string): Uint8Array | null {
 }
 
 export function encodeParams(params: GenerationParams): string {
-  return toBase64Url(encodeV2(params));
+  return toBase64Url(encodeV3(params));
 }
 
 export function decodeParams(code: string): DecodeResult {

@@ -44,7 +44,16 @@ import { BIOMES, isWaterBranch } from "./taxonomy";
 // change how many bridge edges get added, but changes which node pairs get
 // bridged, which can shift connectionTypeFor's rng() draws for the rest of
 // generation — same seed can produce a different (better-connected) map.
-export const ALGORITHM_VERSION = "2.1.1";
+// 2.1.2: CANDIDATE_RADIUS (buildEdges' candidate search radius and
+// acceptance-probability falloff) changed from a fixed constant to a
+// density-aware formula (core/generator.ts's candidateRadiusFor, backing
+// core/geometry.ts's recommendedGridDimensions default grid sizing) so
+// sparser grids still find a healthy number of in-range neighbors instead of
+// pushing more of the graph onto the repair paths. Calibrated to reproduce
+// the old constant exactly at the pre-existing default density (49 nodes /
+// 10x8 grid) — only non-default grid/node combinations see a different RNG
+// sequence.
+export const ALGORITHM_VERSION = "2.1.2";
 
 type Zone = "center" | "mid" | "edge";
 
@@ -283,11 +292,20 @@ function hasEdgeBetween(aId: string, bId: string, edges: MapEdge[]): boolean {
   );
 }
 
-const CANDIDATE_RADIUS = 1.6;
+// Calibrated so candidateRadiusFor(params) reproduces exactly 1.6 (the
+// original fixed constant) at the pre-existing default density (49 nodes /
+// 10x8 grid = 0.6125); density cancels out algebraically at that point.
+const CANDIDATE_RADIUS_BASE = 1.6 * Math.sqrt(49 / (10 * 8));
+
+function candidateRadiusFor(params: GenerationParams): number {
+  const density = params.targetNodeCount / (params.gridCols * params.gridRows);
+  return CANDIDATE_RADIUS_BASE / Math.sqrt(density);
+}
 
 function buildEdges(nodes: MapNode[], params: GenerationParams, rng: RngFn): MapEdge[] {
   const edges: MapEdge[] = [];
   const targetDegree = targetDegreeFor(params);
+  const candidateRadius = candidateRadiusFor(params);
 
   // Order in which nodes get to propose edges is itself seed-driven.
   const order = nodes.map((_, i) => i);
@@ -301,7 +319,7 @@ function buildEdges(nodes: MapNode[], params: GenerationParams, rng: RngFn): Map
     if (degreeOf(a.id, edges) >= targetDegree) continue;
 
     const candidates = nodes
-      .filter((b) => b.id !== a.id && dist(a, b) <= CANDIDATE_RADIUS)
+      .filter((b) => b.id !== a.id && dist(a, b) <= candidateRadius)
       .sort((x, y) => dist(a, x) - dist(a, y));
 
     for (const b of candidates) {
@@ -315,7 +333,7 @@ function buildEdges(nodes: MapNode[], params: GenerationParams, rng: RngFn): Map
       if (usedDirections(b.id, edges).includes(oppositeDir(direction))) continue;
       if (hasEdgeBetween(a.id, b.id, edges)) continue;
 
-      const acceptProb = Math.max(0.15, 1 - dist(a, b) / CANDIDATE_RADIUS);
+      const acceptProb = Math.max(0.15, 1 - dist(a, b) / candidateRadius);
       if (rng() >= acceptProb) continue;
 
       edges.push({

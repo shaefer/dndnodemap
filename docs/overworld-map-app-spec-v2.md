@@ -204,8 +204,8 @@ export interface GenerationParams {
 
   // Map shape
   targetNodeCount: number;   // 20–80, default 49
-  gridCols: number;          // 6–14, default 10
-  gridRows: number;          // 5–12, default 8
+  gridCols: number;          // 6–20, default recommendedGridDimensions(targetNodeCount).gridCols (14 at the default 49)
+  gridRows: number;          // 5–20, default recommendedGridDimensions(targetNodeCount).gridRows (14 at the default 49)
 
   // Node type frequency (three values must sum to 1.0)
   nodeTypeBias: {
@@ -521,7 +521,7 @@ Per Section 3c, the generator now places a full Tier 1/1.5/2 classification per 
 
 ### Step 2 — `buildEdges(nodes, params, rng): MapEdge[]`
 
-For each node A, find candidate neighbors within `1.6 * cellSize` radius. For each candidate B:
+For each node A, find candidate neighbors within `candidateRadiusFor(params)` (Euclidean distance in grid units — M4.7.3's density-aware replacement for the old fixed `1.6`; see Section 7d). For each candidate B:
 1. Compute direction via `dirBetween()`
 2. Skip if direction already used from A
 3. Skip if edge A↔B already exists (check both directions)
@@ -579,7 +579,7 @@ return {
   edges,
   extensions,        // {} unless generateTerrainZones ran (Step 2.5) — factions is always untouched
   params,
-  algorithmVersion: ALGORITHM_VERSION,  // imported constant "2.1.0" — the biome draw's distribution changed (Section 7c), a minor bump per Section 4's rule
+  algorithmVersion: ALGORITHM_VERSION,  // imported constant "2.1.2" — see Section 4's version history for what each bump changed
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 }
@@ -606,6 +606,27 @@ Tropical Jungle    .15    .15   .10    .05    .00    .55    .20
 Each has one dominant biome (~50–60%) and the thematically-contradictory biome at or near zero — a `tundra`-heavy region reads as coherent because `desert`/`jungle` are rare or absent by construction, without any spatial "don't place these two next to each other" logic (a hard adjacency constraint was considered and deliberately not built — the macro weighting alone was judged sufficient).
 
 `store/mapStore.ts` exposes `applyRegionPreset(id)` (sets `biomeMix` + `wildernessWaterFraction` on `draftParams` from a named preset) and `randomizeRegionPreset()` (picks one of the six via `Math.random()` — the same sanctioned exception `randomizeSeed()` already uses, mirrored the same way). `DEFAULT_GENERATION_PARAMS` initializes from one randomly-picked preset at module load, so an untouched fresh app load still reads as a coherent region rather than a flat average of all six biomes. Manually dragging any biome slider afterward is just "whatever `biomeMix` says now" — no separate "custom mode" exists to fall into or out of.
+
+---
+
+## 7d. Grid sizing scaled to node count (`src/core/geometry.ts`'s `recommendedGridDimensions`) — M4.7.3
+
+Tight local clusters on a fixed-size grid were the root cause behind two bugs (an absurdly long `repairConnectivity` bridge edge, and a direction mislabel where two neighbors competed for the same compass slot). `recommendedGridDimensions(targetNodeCount)` gives nodes more breathing room by sizing a square grid roughly double the linear dimension that would just fit them:
+
+```ts
+export function recommendedGridDimensions(targetNodeCount: number): { gridCols: number; gridRows: number } {
+  const side = Math.ceil(Math.sqrt(targetNodeCount)) * 2;
+  return { gridCols: side, gridRows: side };
+}
+```
+
+This is a **mitigation, not a guarantee** — it makes tight local clusters statistically rarer, but doesn't change how `buildEdges`/`ensureMinimumDegree` pick a fallback direction when one does occur. Square only; aspect-ratio/portrait-landscape shape control was a separate idea (not built) for an eventual alternative placement algorithm.
+
+`store/mapStore.ts` exposes this as an explicit `applyRecommendedGridSize()` action (mirrors `applyRegionPreset` — a one-shot recompute the user triggers, not a hidden coupling on the node-count slider) and uses it once to compute `DEFAULT_GENERATION_PARAMS.gridCols`/`gridRows` at module load (14×14 for the default 49-node target, replacing the old fixed 10×8). `GeneratePanel.tsx` exposes it as an "Auto-size grid" button next to the Node count/Grid cols/Grid rows sliders, which remain independently adjustable afterward — moving them again after clicking the button is just a new `gridCols`/`gridRows`, same as any other param.
+
+Because a sparser grid means fewer node pairs fall within a fixed candidate-search radius, `core/generator.ts`'s old fixed `CANDIDATE_RADIUS = 1.6` became a density-aware `candidateRadiusFor(params)` (see Section 7, Step 2) so the normal `buildEdges` pass — not the repair paths — still does most of the connecting work on a sparser grid. It's calibrated to reproduce exactly `1.6` at the pre-existing default density (49 nodes / 10×8 grid), so that one specific grid/node combination is bit-identical to before; only other combinations see a different candidate radius (and thus a different RNG-consuming sequence — `ALGORITHM_VERSION` → `2.1.2`).
+
+Widening `gridCols`/`gridRows`' practical range past 15 (`recommendedGridDimensions(80)` = 18) broke `core/shareCode.ts`'s v1/v2 byte layout, which packed both into a single byte as two 4-bit nibbles — see Section 13b for the resulting `PARAMS_CODEC_VERSION 3`.
 
 ---
 
@@ -783,8 +804,9 @@ Controls read/write the store's `draftParams` directly via `updateDraftParam` (S
 | Control | Type | Range | Default |
 |---------|------|-------|---------|
 | Node count | Slider | 20–80 | 49 |
-| Grid cols | Slider | 6–14 | 10 |
-| Grid rows | Slider | 5–12 | 8 |
+| Grid cols | Slider | 6–20 | 14 (`recommendedGridDimensions(49)`) |
+| Grid rows | Slider | 5–20 | 14 (`recommendedGridDimensions(49)`) |
+| Auto-size grid | Button | — | recomputes Grid cols/rows from the current Node count (Section 7d) |
 | Settlements | Slider | 0–100% | 20% |
 | Wilderness | Slider | 0–100% | 55% |
 | Points of Interest | Slider | 0–100% | 25% |
@@ -915,27 +937,28 @@ On app load: if `overworld-current` exists and its `algorithmVersion` matches th
 
 A generated map's full `GenerationParams` (seed included — `seed` is already a field of `GenerationParams`, not a separate value) can be encoded into one short, URL-safe **share code** carried as a query parameter, so pasting the address bar reproduces the identical map for anyone. This is an **encoding**, not a hash — it must be decodable back into the exact params, which a one-way hash (SHA-256, etc.) cannot do.
 
-### Byte layout (`PARAMS_CODEC_VERSION = 2`, 20 bytes)
+### Byte layout (`PARAMS_CODEC_VERSION = 3`, 21 bytes)
 
 | Bytes | Field | Encoding |
 |---|---|---|
 | 0 | codec version | raw uint8 |
 | 1-4 | `seed` | uint32 |
 | 5 | `targetNodeCount` | raw uint8 (range 20–80 fits) |
-| 6 | `gridCols` \| `gridRows` | low nibble = `gridCols` (6–14), high nibble = `gridRows` (5–12) |
-| 7 | `nodeTypeBias.settlement` | fixed-point 0–255 over [0,1] |
-| 8 | `nodeTypeBias.wilderness` | fixed-point 0–255 over [0,1] — `poi` derived as `1 - settlement - wilderness` on decode, then all three renormalized to sum to exactly 1 (same drift guard `rebalanceShares` already uses) |
-| 9 | `edgeDensity` | exact integer percent 0–100, decoded via `/100` |
-| 10 | `checkRequiredFraction` | exact integer percent 0–100 |
-| 11 | `boundaryFraction` | exact integer percent 0–100 |
-| 12 | `wildernessWaterFraction` | exact integer percent 0–100 |
-| 13 | `settlementOutpostFraction` | exact integer percent 0–100 |
-| 14 | flags | bit 0 = `generateTerrainZones`; bits 1–7 reserved |
-| 15-19 | `biomeMix.forest`, `.swamp`, `.plains`, `.desert`, `.tundra` | fixed-point 0–255 over [0,1] each — `.jungle` derived as `1 - (the other five)` on decode, then all six renormalized to sum to exactly 1 (M4.7.2; same drift-guard pattern as `nodeTypeBias` above) |
+| 6 | `gridCols` | raw uint8 |
+| 7 | `gridRows` | raw uint8 |
+| 8 | `nodeTypeBias.settlement` | fixed-point 0–255 over [0,1] |
+| 9 | `nodeTypeBias.wilderness` | fixed-point 0–255 over [0,1] — `poi` derived as `1 - settlement - wilderness` on decode, then all three renormalized to sum to exactly 1 (same drift guard `rebalanceShares` already uses) |
+| 10 | `edgeDensity` | exact integer percent 0–100, decoded via `/100` |
+| 11 | `checkRequiredFraction` | exact integer percent 0–100 |
+| 12 | `boundaryFraction` | exact integer percent 0–100 |
+| 13 | `wildernessWaterFraction` | exact integer percent 0–100 |
+| 14 | `settlementOutpostFraction` | exact integer percent 0–100 |
+| 15 | flags | bit 0 = `generateTerrainZones`; bits 1–7 reserved |
+| 16-20 | `biomeMix.forest`, `.swamp`, `.plains`, `.desert`, `.tundra` | fixed-point 0–255 over [0,1] each — `.jungle` derived as `1 - (the other five)` on decode, then all six renormalized to sum to exactly 1 (M4.7.2; same drift-guard pattern as `nodeTypeBias` above) |
 
-Base64url-encoded (`btoa`/`atob` — available identically in modern Node and every current browser, same cross-runtime assumption `crypto.randomUUID()` already relies on — with `+`/`/` swapped to `-`/`_` and `=` padding stripped) → ~27 characters. Carried as the `map` query parameter, e.g. `?map=AQIDBAUG...`.
+Base64url-encoded (`btoa`/`atob` — available identically in modern Node and every current browser, same cross-runtime assumption `crypto.randomUUID()` already relies on — with `+`/`/` swapped to `-`/`_` and `=` padding stripped) → 28 characters. Carried as the `map` query parameter, e.g. `?map=AQIDBAUG...`.
 
-**`PARAMS_CODEC_VERSION 1`'s decoder stays registered and was updated (not left alone) when `biomeMix` was added** — it fills a sensible default (`biomeMix` = the Temperate Mixed region preset's values, Section 7c) for old 15-byte links that predate the field, so they keep decoding to a valid, current-shape `GenerationParams` instead of breaking. Never delete or repurpose a decoder version once shipped — this is the exact scenario the versioned-registry design exists for.
+**`PARAMS_CODEC_VERSION 1` and `2`'s decoders stay registered forever** — never delete or repurpose a decoder version once shipped; this is the exact scenario the versioned-registry design exists for. `decodeV1` fills a sensible default (`biomeMix` = the Temperate Mixed region preset's values, Section 7c) for old 15-byte links that predate that field. `v2`→`v3` (M4.7.3) moved `gridCols`/`gridRows` from a single byte's two 4-bit nibbles (max 15 each) to one full byte each — `recommendedGridDimensions(80)` (Section 7d) recommends 18, which no longer fits a nibble — so `decodeV2` stays registered to keep pre-M4.7.3 links decodable, but `encodeV1`/`encodeV2` themselves are gone: only the current encoder (`encodeV3`) is ever produced going forward, and nothing else in the app calls the old ones.
 
 **Why the five single-slider fractions (`edgeDensity`, `checkRequiredFraction`, `boundaryFraction`, `wildernessWaterFraction`, `settlementOutpostFraction`) use exact integer percent, not generic fixed-point:** the Generation Panel's sliders (Section 11, View B) only ever produce `v/100` for integer `v` 0–100 before committing to `draftParams`. Encoding the integer and decoding via `/100` reconstructs the *exact* float the UI produced — zero precision loss, and no risk of an encoding epsilon flipping one of the many `rng() < fraction` comparisons the generator makes per node/edge. `nodeTypeBias` and `biomeMix` don't get the same treatment because `rebalanceShares`'s proportional rescale produces non-round floats regardless of encoding scheme — lower-stakes anyway, since `nodeTypeBias` only ever feeds a `Math.round(nodeCount × share)` budget calculation (Section 7) and `biomeMix` only ever feeds a weighted pick, neither a raw per-node RNG *comparison* the way the five percent fields do.
 
@@ -1351,6 +1374,12 @@ Acceptance: generating a map updates the address bar with a `?map=...` share cod
 Deliverables: `core/regionPresets.ts` (six named presets per Section 7c); `types/map.ts`'s `GenerationParams.biomeMix` (new field); `core/generator.ts`'s wilderness land-branch subtype pick reworked from a flat uniform `randPick` to a weighted pick against `biomeMix` (`ALGORITHM_VERSION` → `2.1.0`); `core/shareCode.ts`'s `PARAMS_CODEC_VERSION` → `2` (new `encodeV2`/`decodeV2`, `decodeV1` updated to fill a default `biomeMix` rather than left alone); `store/mapStore.ts`'s `rebalanceNodeTypeBias` generalized to `rebalanceShares` (now also driving the six new biome sliders) plus new `applyRegionPreset`/`randomizeRegionPreset` actions; `GeneratePanel.tsx` gains six biome sliders, a Region Preset select, and a Randomize Region button.
 
 Acceptance: a map generated with the Frost preset never places a `jungle` node (its `biomeMix.jungle` is exactly 0) across many seeds; the Region Preset select loads a preset's exact values into the sliders in one action, and manually dragging any biome slider afterward just changes `biomeMix` with no separate "custom mode" to fall in or out of; a share code decodes `biomeMix` correctly under `PARAMS_CODEC_VERSION 2`, and an old `PARAMS_CODEC_VERSION 1` code (predating `biomeMix`) still decodes successfully with a sensible default rather than failing; `rebalanceShares` produces identical behavior to the old `rebalanceNodeTypeBias` for the 3-key case (regression) and correctly renormalizes the 6-key `biomeMix` case; visually verified via the same headless-Chrome-screenshot approach as M4.7 (see `CLAUDE.md`) — a Frost-preset map should visibly read as tundra-dominant.
+
+### M4.7.3 — Grid sizing scaled to node count
+
+Deliverables: `core/geometry.ts`'s `recommendedGridDimensions(targetNodeCount)` (Section 7d); `core/generator.ts`'s fixed `CANDIDATE_RADIUS` replaced with a density-aware `candidateRadiusFor(params)` (`ALGORITHM_VERSION` → `2.1.2`); `store/mapStore.ts`'s `applyRecommendedGridSize` action and a `DEFAULT_GENERATION_PARAMS.gridCols`/`gridRows` computed from it (14×14 at the default 49-node target, replacing the old fixed 10×8); `GeneratePanel.tsx` gains an "Auto-size grid" button and widened Grid cols/rows slider bounds (6–20). Widening the grid range past 15 broke `core/shareCode.ts`'s v1/v2 nibble-packed `gridCols`/`gridRows` byte (4 bits each, max 15) — discovered while implementing, not planned up front — so `PARAMS_CODEC_VERSION` also bumped to `3` (Section 13b): `gridCols`/`gridRows` each get a full byte now; `decodeV1`/`decodeV2` stay registered for old links, `encodeV1`/`encodeV2` themselves were removed as genuinely dead code once `encodeParams` moved to `encodeV3`.
+
+Acceptance: `recommendedGridDimensions(49)` returns `{ gridCols: 14, gridRows: 14 }` (the milestone's own worked example); the pre-existing 49-node/10×8 combination generates a bit-identical map to before this change (regression — guards the `CANDIDATE_RADIUS` recalibration); a map generated at the new 14×14 default (and an 18×18/80-node case) still passes all validator invariants across several seeds; an 18×18-grid share code round-trips exactly under codec v3 (regression — this is exactly the case v1/v2 couldn't represent); a hand-built v2 payload still decodes correctly (regression, mirroring the existing v1 one); visually verified via the same headless-Chrome-screenshot approach as M4.7/M4.7.2 — the new default should read as visibly less clustered than the old 10×8 default, without empty-looking dead space. Explicitly out of scope: any change to `ensureMinimumDegree`/`bestAvailableDirection`'s direction-fallback logic — this mitigates tight local clusters statistically, it doesn't prevent them.
 
 ### M5 — Edit panels
 Deliverables: `NodePanel.tsx`, `EdgePanel.tsx`, `DirectionPicker.tsx`, `NodeTypeSelect.tsx`

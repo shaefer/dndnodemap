@@ -65,3 +65,14 @@ export function centroid(points: Point[]): Point {
     y: points.reduce((sum, p) => sum + p.y, 0) / points.length,
   };
 }
+
+// "About double the linear dimension needed to just fit the nodes" — gives
+// placement room to breathe so tight local clusters (a source of both the
+// long-repair-edge and direction-collision bugs) are statistically rarer.
+// Square only; aspect-ratio/shape control is a separate, not-yet-built idea.
+const GRID_LINEAR_FACTOR = 2;
+
+export function recommendedGridDimensions(targetNodeCount: number): { gridCols: number; gridRows: number } {
+  const side = Math.ceil(Math.sqrt(targetNodeCount)) * GRID_LINEAR_FACTOR;
+  return { gridCols: side, gridRows: side };
+}

@@ -174,6 +174,24 @@ describe("applyRegionPreset / randomizeRegionPreset", () => {
   });
 });
 
+describe("applyRecommendedGridSize", () => {
+  beforeEach(resetStore);
+
+  it("sets gridCols/gridRows to recommendedGridDimensions(targetNodeCount)", () => {
+    useMapStore.getState().updateDraftParam("targetNodeCount", 49);
+    useMapStore.getState().applyRecommendedGridSize();
+    const { gridCols, gridRows } = useMapStore.getState().draftParams;
+    expect(gridCols).toBe(14);
+    expect(gridRows).toBe(14);
+  });
+
+  it("recomputes against the current targetNodeCount, not a stale one", () => {
+    useMapStore.getState().updateDraftParam("targetNodeCount", 20);
+    useMapStore.getState().applyRecommendedGridSize();
+    expect(useMapStore.getState().draftParams.gridCols).toBe(10);
+  });
+});
+
 describe("selectExitsForNode", () => {
   it("returns each edge's direction from the node's own perspective, flipping for incoming edges", () => {
     const map = buildPrototypeMap();

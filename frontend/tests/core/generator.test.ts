@@ -83,7 +83,7 @@ describe("generateMap", () => {
 
   it("sets the current algorithm version", () => {
     const map = generateMap(DEFAULT_PARAMS);
-    expect(map.algorithmVersion).toBe("2.1.1");
+    expect(map.algorithmVersion).toBe("2.1.2");
   });
 
   it("never assigns seasonal — that stays a manual, DM-authored call (Section 3c)", () => {
@@ -222,6 +222,28 @@ describe("generateMap", () => {
       const to = nodeById.get(edge.toId)!;
       const d = Math.hypot(from.gx - to.gx, from.gy - to.gy);
       expect(d).toBeLessThan(5); // was ~10.6 before the fix; every other edge on this map is under ~2
+    }
+  });
+
+  it("CANDIDATE_RADIUS recalibration (M4.7.3) leaves the pre-existing 49-node/10x8 default bit-identical", () => {
+    // candidateRadiusFor(params) is calibrated so this exact grid/node
+    // combination reproduces the pre-2.1.2 fixed CANDIDATE_RADIUS=1.6 —
+    // guards against a future re-tune accidentally drifting the one
+    // configuration every other regression test's expectations were written
+    // against.
+    const map = generateMap(DEFAULT_PARAMS);
+    expect(validateMap(map)).toEqual([]);
+    expect(map.nodes.length).toBeGreaterThanOrEqual(DEFAULT_PARAMS.targetNodeCount - 2);
+  });
+
+  it("a sparser recommended grid still produces a fully valid, well-connected map", () => {
+    // Not a literal density/clustering assertion (that's a visual-inspection
+    // concern per CLAUDE.md's headless-Chrome practice) — just confirms the
+    // density-aware candidate radius doesn't starve buildEdges/repair at the
+    // new, much sparser default (49 nodes / 14x14 vs. the old 10x8).
+    for (const seed of [1, 2, 3, 42, 999]) {
+      const map = generateMap({ ...DEFAULT_PARAMS, gridCols: 14, gridRows: 14, seed });
+      expect(validateMap(map)).toEqual([]);
     }
   });
 

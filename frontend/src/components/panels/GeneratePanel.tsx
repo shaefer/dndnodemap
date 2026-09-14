@@ -63,6 +63,7 @@ export function GeneratePanel() {
   const randomizeSeed = useMapStore((s) => s.randomizeSeed);
   const applyRegionPreset = useMapStore((s) => s.applyRegionPreset);
   const randomizeRegionPreset = useMapStore((s) => s.randomizeRegionPreset);
+  const applyRecommendedGridSize = useMapStore((s) => s.applyRecommendedGridSize);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -147,7 +148,7 @@ export function GeneratePanel() {
         <RangeRow
           label="Grid cols"
           min={6}
-          max={14}
+          max={20}
           value={draftParams.gridCols}
           displayValue={String(draftParams.gridCols)}
           onChange={(v) => updateDraftParam("gridCols", v)}
@@ -155,11 +156,14 @@ export function GeneratePanel() {
         <RangeRow
           label="Grid rows"
           min={5}
-          max={12}
+          max={20}
           value={draftParams.gridRows}
           displayValue={String(draftParams.gridRows)}
           onChange={(v) => updateDraftParam("gridRows", v)}
         />
+        <button type="button" onClick={applyRecommendedGridSize} style={{ fontSize: 12 }}>
+          Auto-size grid
+        </button>
       </div>
 
       <div style={{ marginBottom: 16 }}>

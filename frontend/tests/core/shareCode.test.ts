@@ -102,7 +102,10 @@ describe("encodeParams / decodeParams", () => {
   it("handles extreme values at each field's min/max without error", () => {
     const extremes: GenerationParams[] = [
       { ...DEFAULT_PARAMS, seed: 0, targetNodeCount: 20, gridCols: 6, gridRows: 5 },
-      { ...DEFAULT_PARAMS, seed: 4294967295, targetNodeCount: 80, gridCols: 14, gridRows: 12 },
+      // 18x18 exceeds v1/v2's 4-bit-nibble range (max 15) — this is exactly
+      // what recommendedGridDimensions(80) recommends (M4.7.3), and the
+      // reason v3 gave gridCols/gridRows their own full byte each.
+      { ...DEFAULT_PARAMS, seed: 4294967295, targetNodeCount: 80, gridCols: 18, gridRows: 18 },
       {
         ...DEFAULT_PARAMS,
         nodeTypeBias: { settlement: 1, wilderness: 0, poi: 0 },
@@ -136,7 +139,7 @@ describe("encodeParams / decodeParams", () => {
     // Indirect check: decoding should succeed under the version this build
     // knows about, and PARAMS_CODEC_VERSION itself should be a small,
     // stable, forward-compatible integer.
-    expect(PARAMS_CODEC_VERSION).toBe(2);
+    expect(PARAMS_CODEC_VERSION).toBe(3);
     const result = decodeParams(encodeParams(DEFAULT_PARAMS));
     expect(result.ok).toBe(true);
   });
@@ -172,6 +175,48 @@ describe("encodeParams / decodeParams", () => {
     expect(result.params.seed).toBe(12345);
     expect(result.params.biomeMix).toEqual(REGION_PRESETS.temperate_mixed.biomeMix);
     // still a valid, generatable GenerationParams
+    expect(() => generateMap(result.params)).not.toThrow();
+  });
+
+  it("a v2 (pre-full-byte-grid) share code still decodes (regression)", () => {
+    // Hand-construct a v2-shaped (20-byte) payload — what encodeParams used
+    // to produce before M4.7.3 gave gridCols/gridRows their own full byte.
+    // encodeV2 itself is gone now that encodeParams always emits v3, so this
+    // is decodeV2's only remaining exercise — it must keep working per the
+    // "never break an old link" rule, same as decodeV1.
+    const v2Bytes = new Uint8Array(20);
+    v2Bytes[0] = 2;
+    v2Bytes[1] = 0;
+    v2Bytes[2] = 0;
+    v2Bytes[3] = 0x30;
+    v2Bytes[4] = 0x39; // seed = 12345
+    v2Bytes[5] = 49; // targetNodeCount
+    v2Bytes[6] = (10 & 0x0f) | ((8 & 0x0f) << 4); // gridCols=10, gridRows=8 (nibble-packed, v1/v2's max)
+    v2Bytes[7] = Math.round(0.2 * 255);
+    v2Bytes[8] = Math.round(0.55 * 255);
+    v2Bytes[9] = 50; // edgeDensity
+    v2Bytes[10] = 25; // checkRequiredFraction
+    v2Bytes[11] = 70; // boundaryFraction
+    v2Bytes[12] = 15; // wildernessWaterFraction
+    v2Bytes[13] = 25; // settlementOutpostFraction
+    v2Bytes[14] = 0; // generateTerrainZones = false
+    v2Bytes[15] = Math.round(0.3 * 255); // biomeMix.forest
+    v2Bytes[16] = Math.round(0.15 * 255); // biomeMix.swamp
+    v2Bytes[17] = Math.round(0.25 * 255); // biomeMix.plains
+    v2Bytes[18] = Math.round(0.1 * 255); // biomeMix.desert
+    v2Bytes[19] = Math.round(0.1 * 255); // biomeMix.tundra
+
+    let binary = "";
+    for (const b of v2Bytes) binary += String.fromCharCode(b);
+    const code = btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+    const result = decodeParams(code);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.params.seed).toBe(12345);
+    expect(result.params.gridCols).toBe(10);
+    expect(result.params.gridRows).toBe(8);
+    expect(result.params.biomeMix.forest).toBeCloseTo(0.3, 2);
     expect(() => generateMap(result.params)).not.toThrow();
   });
 

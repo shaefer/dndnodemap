@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { oppositeDir } from "../core/compass";
-import { centroid, convexHull, padHull } from "../core/geometry";
+import { centroid, convexHull, padHull, recommendedGridDimensions } from "../core/geometry";
 import { edgesForNode } from "../core/graph";
 import { generateMap } from "../core/generator";
 import { buildPrototypeMap } from "../core/prototypeMap";
@@ -15,7 +15,16 @@ import type { CompassDir, GenerationParams, MapEdge, MapNode, WorldMap } from ".
 // presets, without importing core/ directly — components may only import
 // store/, types/, and React (spec Section 2 / CLAUDE.md's architecture
 // contract).
-export { centroid, convexHull, isOutpostBranch, isWaterBranch, padHull, REGION_PRESET_IDS, REGION_PRESETS };
+export {
+  centroid,
+  convexHull,
+  isOutpostBranch,
+  isWaterBranch,
+  padHull,
+  recommendedGridDimensions,
+  REGION_PRESET_IDS,
+  REGION_PRESETS,
+};
 export type { RegionPresetId };
 
 const MAX_HISTORY = 30;
@@ -35,12 +44,13 @@ function randomRegionPresetId(): RegionPresetId {
 }
 
 const initialRegionPreset = REGION_PRESETS[randomRegionPresetId()];
+const initialGridSize = recommendedGridDimensions(49);
 
 export const DEFAULT_GENERATION_PARAMS: GenerationParams = {
   seed: randomSeed(),
   targetNodeCount: 49,
-  gridCols: 10,
-  gridRows: 8,
+  gridCols: initialGridSize.gridCols,
+  gridRows: initialGridSize.gridRows,
   nodeTypeBias: { settlement: 0.2, wilderness: 0.55, poi: 0.25 },
   wildernessWaterFraction: initialRegionPreset.wildernessWaterFraction,
   settlementOutpostFraction: 0.25,
@@ -213,6 +223,12 @@ interface MapState {
   // afterward is just a new biomeMix, nothing to fall in or out of.
   applyRegionPreset: (id: RegionPresetId) => void;
   randomizeRegionPreset: () => void;
+  // Sets gridCols/gridRows to recommendedGridDimensions(targetNodeCount) in
+  // one action (spec Section 7/16, "grid sizing scaled to node count") — an
+  // explicit, user-triggered recompute, not a hidden coupling on the node
+  // count slider. gridCols/gridRows stay freely adjustable afterward, same
+  // as biomeMix sliders after a region preset.
+  applyRecommendedGridSize: () => void;
 
   updateNode: (id: string, patch: Partial<MapNode>) => void;
   deleteNode: (id: string) => void;
@@ -287,6 +303,12 @@ export const useMapStore = create<MapState>((set, get) => ({
   randomizeRegionPreset: () => {
     get().applyRegionPreset(randomRegionPresetId());
   },
+
+  applyRecommendedGridSize: () =>
+    set((state) => {
+      const { gridCols, gridRows } = recommendedGridDimensions(state.draftParams.targetNodeCount);
+      return { draftParams: { ...state.draftParams, gridCols, gridRows } };
+    }),
 
   updateNode: (id, patch) =>
     set((state) => {

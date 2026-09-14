@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { centroid, convexHull, padHull } from "../../src/core/geometry";
+import { centroid, convexHull, padHull, recommendedGridDimensions } from "../../src/core/geometry";
 
 describe("convexHull", () => {
   it("passes through fewer than 3 points unchanged", () => {
@@ -65,5 +65,23 @@ describe("centroid", () => {
 
   it("returns the origin for an empty array", () => {
     expect(centroid([])).toEqual({ x: 0, y: 0 });
+  });
+});
+
+describe("recommendedGridDimensions", () => {
+  it("returns a 14x14 grid for 49 nodes (the worked example)", () => {
+    expect(recommendedGridDimensions(49)).toEqual({ gridCols: 14, gridRows: 14 });
+  });
+
+  it("returns a square grid roughly double the minimum-fit linear dimension", () => {
+    expect(recommendedGridDimensions(20)).toEqual({ gridCols: 10, gridRows: 10 });
+    expect(recommendedGridDimensions(80)).toEqual({ gridCols: 18, gridRows: 18 });
+  });
+
+  it("always returns cols === rows (square only — aspect ratio is a separate, not-yet-built idea)", () => {
+    for (const n of [1, 5, 20, 49, 80, 200]) {
+      const { gridCols, gridRows } = recommendedGridDimensions(n);
+      expect(gridCols).toBe(gridRows);
+    }
   });
 });
