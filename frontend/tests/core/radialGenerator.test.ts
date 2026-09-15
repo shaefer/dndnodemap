@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { oppositeDir } from "../../src/core/compass";
 import { generateMap } from "../../src/core/generator";
 import { validateMap } from "../../src/core/validator";
-import type { GenerationParams, WorldMap } from "../../src/types/map";
+import type { CompassDir, GenerationParams, WorldMap } from "../../src/types/map";
 
 const RADIAL_PARAMS: GenerationParams = {
   seed: 42,
@@ -59,11 +60,17 @@ describe("generateMap (radial)", () => {
     expect(a).not.toEqual(b);
   });
 
-  it("derives its own grid size and overrides whatever gridCols/gridRows were passed in", () => {
-    // stepsPerSpoke = ceil((41-1)/8) = 5 -> side = 2*5+1 = 11
+  it("derives its own grid size (by area, from node count) and overrides whatever gridCols/gridRows were passed in", () => {
+    // ceil(sqrt(41)) * 2 = 14, forced odd (a true center cell for the core) -> 15
     const map = generateMap(RADIAL_PARAMS);
-    expect(map.params.gridCols).toBe(11);
-    expect(map.params.gridRows).toBe(11);
+    expect(map.params.gridCols).toBe(15);
+    expect(map.params.gridRows).toBe(15);
+  });
+
+  it("sizes the grid from node count alone — arm count doesn't change the area needed", () => {
+    const fewArms = generateMap({ ...RADIAL_PARAMS, radialSpokeCount: 2 });
+    const manyArms = generateMap({ ...RADIAL_PARAMS, radialSpokeCount: 8 });
+    expect(fewArms.params.gridCols).toBe(manyArms.params.gridCols);
   });
 
   it("places exactly one settlement node at the exact, unjittered grid center", () => {
@@ -95,7 +102,41 @@ describe("generateMap (radial)", () => {
 
   it("sets the current algorithm version", () => {
     const map = generateMap(RADIAL_PARAMS);
-    expect(map.algorithmVersion).toBe("2.2.0");
+    expect(map.algorithmVersion).toBe("2.3.0");
+  });
+
+  it("does not prefer continuing straight through a node (regression — the M4.8 bug)", () => {
+    // The first implementation snapped every step toward "keep going the
+    // way this spoke started," so a pass-through node's two exits (from its
+    // own perspective) were opposite compass directions almost every time —
+    // a dead giveaway of a straight ray. Direction choice here has no term
+    // for "match the incoming heading" at all, so for a degree-2 node the
+    // fraction whose two exits happen to be exactly opposite should sit
+    // near the pure-chance baseline (~1/7, since 1 of the 7 remaining free
+    // directions is "opposite the one just used") — nowhere near "almost
+    // every time."
+    const seeds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    let straight = 0;
+    let total = 0;
+    for (const seed of seeds) {
+      const map = generateMap({ ...RADIAL_PARAMS, seed, targetNodeCount: 60 });
+      const dirsByNode = new Map<string, CompassDir[]>();
+      for (const e of map.edges) {
+        const fromDirs = dirsByNode.get(e.fromId) ?? [];
+        fromDirs.push(e.direction);
+        dirsByNode.set(e.fromId, fromDirs);
+        const toDirs = dirsByNode.get(e.toId) ?? [];
+        toDirs.push(oppositeDir(e.direction));
+        dirsByNode.set(e.toId, toDirs);
+      }
+      for (const dirs of dirsByNode.values()) {
+        if (dirs.length !== 2) continue; // only plain pass-through nodes are meaningful here
+        total++;
+        if (oppositeDir(dirs[0]) === dirs[1]) straight++;
+      }
+    }
+    expect(total).toBeGreaterThan(50); // sanity: the sample is big enough to mean something
+    expect(straight / total).toBeLessThan(0.35); // well below "almost always" (was ~1.0 pre-fix), close to chance (~0.14)
   });
 
   describe("radialCoreInterconnectivity", () => {
@@ -114,15 +155,31 @@ describe("generateMap (radial)", () => {
   });
 
   describe("radialBranchChance", () => {
-    it("higher values produce more nodes on average across seeds (branches add nodes)", () => {
+    // radialBranchChance drives frontier-selection strategy (the Growing
+    // Tree algorithm's defining knob): 0 always picks the newest frontier
+    // entry (recursive-backtracker-style — long winding single threads),
+    // 1 always picks a random entry (Prim's-style — bushier, more branch
+    // points). Final node count reliably hits ~targetNodeCount either way
+    // (the outer loop stops right at target), so "more nodes" isn't a
+    // meaningful signal here — branch-point count (nodes with 3+ edges) is.
+    function branchPointCount(map: ReturnType<typeof generateMap>) {
+      const degree = new Map<string, number>();
+      for (const e of map.edges) {
+        degree.set(e.fromId, (degree.get(e.fromId) ?? 0) + 1);
+        degree.set(e.toId, (degree.get(e.toId) ?? 0) + 1);
+      }
+      return [...degree.values()].filter((d) => d >= 3).length;
+    }
+
+    it("higher values produce more branch points on average across seeds (bushier growth)", () => {
       const seeds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
       let lowTotal = 0;
       let highTotal = 0;
       for (const seed of seeds) {
         const low = generateMap({ ...RADIAL_PARAMS, seed, radialBranchChance: 0, radialClusterChance: 0 });
         const high = generateMap({ ...RADIAL_PARAMS, seed, radialBranchChance: 1, radialClusterChance: 0 });
-        lowTotal += low.nodes.length;
-        highTotal += high.nodes.length;
+        lowTotal += branchPointCount(low);
+        highTotal += branchPointCount(high);
       }
       expect(highTotal).toBeGreaterThan(lowTotal);
     });

@@ -78,19 +78,26 @@ export function recommendedGridDimensions(targetNodeCount: number): { gridCols: 
 }
 
 // The radial (core-out) placement algorithm's own grid-sizing formula (spec
-// Section 7e) — a square sized to fit spokeCount spokes of stepsPerSpoke
-// nodes each, radiating from a true center cell. core/radialGenerator.ts is
-// the sole consumer for actual generation; store/mapStore.ts re-exports this
-// same function so GeneratePanel.tsx can show the *same* derived size
-// read-only (radial mode doesn't expose gridCols/gridRows as tunable
-// sliders — the grid is a consequence of node count + spoke count, not an
-// independent input) without UI and generator ever computing it two
-// different ways.
-export function recommendedRadialGridDimensions(
-  targetNodeCount: number,
-  spokeCount: number
-): { gridCols: number; gridRows: number } {
-  const stepsPerSpoke = Math.max(1, Math.ceil((targetNodeCount - 1) / Math.max(1, spokeCount)));
-  const side = 2 * stepsPerSpoke + 1;
+// Section 7e). core/radialGenerator.ts is the sole consumer for actual
+// generation; store/mapStore.ts re-exports this same function so
+// GeneratePanel.tsx can show the *same* derived size read-only (radial mode
+// doesn't expose gridCols/gridRows as tunable sliders — the grid is a
+// consequence of node count, not an independent input) without UI and
+// generator ever computing it two different ways.
+//
+// Sized by AREA, the same way recommendedGridDimensions is, rather than by
+// "arms x steps outward": once the M4.8 correction replaced literal
+// fixed-radius spokes with organic maze-style growth, arm count stopped
+// having anything to do with how far the map spreads — total node count is
+// what determines the area needed. An earlier arms-based formula badly
+// over-sized the grid (the maze filled maybe a third of it, leaving dead
+// margins on the canvas and keeping nodes from ever reaching the outer
+// radius bands where boundary markers are placed).
+//
+// Forced odd so there's a true center cell for the core settlement to sit
+// on — the one structural requirement the radial algorithm has of its grid.
+export function recommendedRadialGridDimensions(targetNodeCount: number): { gridCols: number; gridRows: number } {
+  const base = Math.ceil(Math.sqrt(Math.max(1, targetNodeCount))) * GRID_LINEAR_FACTOR;
+  const side = base % 2 === 0 ? base + 1 : base;
   return { gridCols: side, gridRows: side };
 }

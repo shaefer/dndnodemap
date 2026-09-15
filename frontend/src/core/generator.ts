@@ -67,7 +67,18 @@ import { BIOMES } from "./taxonomy";
 // classification/connectivity-repair logic extracted to
 // core/generationShared.ts so neither path can quietly drift from the
 // other's taxonomy rules.
-export const ALGORITHM_VERSION = "2.2.0";
+// 2.3.0: "radial" reworked from literal fixed-radius spokes to organic,
+// collision-avoiding maze-style growth (a Growing Tree algorithm) after
+// direct user testing feedback that the first implementation was too
+// literal — every step used to snap toward "keep going the way this spoke
+// started," producing straight rays with no real direction freedom or
+// collision handling. Same six radialSpokeCount/radialCoreInterconnectivity/
+// radialBranchChance/radialClusterChance/radialDeadEndPoiBias/
+// radialConvergenceRadius fields, reinterpreted (see core/radialGenerator.ts
+// and spec Section 7e) rather than replaced — no params/UI/codec changes,
+// only the "radial" RNG sequence and resulting map shape. "grid" mode is
+// completely unaffected.
+export const ALGORITHM_VERSION = "2.3.0";
 
 // --- Step 1: node placement ("grid" algorithm) -------------------------------
 

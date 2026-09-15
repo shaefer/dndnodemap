@@ -170,15 +170,15 @@ export function GeneratePanel() {
           onChange={(v) => updateDraftParam("targetNodeCount", v)}
         />
         {draftParams.placementAlgorithm === "radial" ? (
-          // Radial mode derives its own grid size from node count + spoke
-          // count (spec Section 7e) — gridCols/gridRows aren't independent
-          // tunable inputs here, so show the actual value generate() will
-          // use instead of stale/irrelevant sliders.
+          // Radial mode derives its own grid size from node count (spec
+          // Section 7e) — gridCols/gridRows aren't independent tunable
+          // inputs here, so show the actual value generate() will use
+          // instead of stale/irrelevant sliders.
           (() => {
-            const derived = recommendedRadialGridDimensions(draftParams.targetNodeCount, draftParams.radialSpokeCount);
+            const derived = recommendedRadialGridDimensions(draftParams.targetNodeCount);
             return (
               <div style={{ fontSize: 12, color: "#666", marginBottom: 10 }}>
-                Grid size: {derived.gridCols}×{derived.gridRows} (derived from node count + spoke count)
+                Grid size: {derived.gridCols}×{derived.gridRows} (derived from node count)
               </div>
             );
           })()
