@@ -44,6 +44,9 @@ const DEFAULT_PARAMS: GenerationParams = {
   coastalChance: 0.05,
   interiorBoundaryDamping: 0.15,
   wildernessCheckMultiplier: 0.2,
+  layoutRelaxStrength: 0.6,
+  layoutNodeSpacing: 0.6,
+  layoutDirectionWeight: 0.8,
   nodeTypeBias: { settlement: 0.2, wilderness: 0.55, poi: 0.25 },
   wildernessWaterFraction: 0.15,
   settlementOutpostFraction: 0.25,
@@ -149,7 +152,7 @@ describe("encodeParams / decodeParams", () => {
 
   it("produces a short, URL-safe code", () => {
     const code = encodeParams(DEFAULT_PARAMS);
-    expect(code.length).toBeLessThanOrEqual(52);
+    expect(code.length).toBeLessThanOrEqual(56);
     expect(code).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 
@@ -157,7 +160,7 @@ describe("encodeParams / decodeParams", () => {
     // Indirect check: decoding should succeed under the version this build
     // knows about, and PARAMS_CODEC_VERSION itself should be a small,
     // stable, forward-compatible integer.
-    expect(PARAMS_CODEC_VERSION).toBe(5);
+    expect(PARAMS_CODEC_VERSION).toBe(6);
     const result = decodeParams(encodeParams(DEFAULT_PARAMS));
     expect(result.ok).toBe(true);
   });

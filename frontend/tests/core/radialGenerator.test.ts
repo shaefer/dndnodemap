@@ -30,6 +30,9 @@ const RADIAL_PARAMS: GenerationParams = {
   coastalChance: 0.05,
   interiorBoundaryDamping: 0.15,
   wildernessCheckMultiplier: 0.2,
+  layoutRelaxStrength: 0.6,
+  layoutNodeSpacing: 0.6,
+  layoutDirectionWeight: 0.8,
   nodeTypeBias: { settlement: 0.2, wilderness: 0.55, poi: 0.25 },
   wildernessWaterFraction: 0.15,
   settlementOutpostFraction: 0.25,
@@ -85,7 +88,10 @@ describe("generateMap (radial)", () => {
   });
 
   it("places exactly one settlement node at the exact, unjittered grid center", () => {
-    const map = generateMap(RADIAL_PARAMS);
+    // Relaxation off: this asserts the *placement* contract, and the
+    // post-placement visual pass (spec Section 7f) legitimately nudges the
+    // core off dead center along with everything else.
+    const map = generateMap({ ...RADIAL_PARAMS, layoutRelaxStrength: 0 });
     const center = (map.params.gridCols - 1) / 2;
     const atCenter = map.nodes.filter((n) => n.gx === center && n.gy === center);
     expect(atCenter).toHaveLength(1);
@@ -113,7 +119,7 @@ describe("generateMap (radial)", () => {
 
   it("sets the current algorithm version", () => {
     const map = generateMap(RADIAL_PARAMS);
-    expect(map.algorithmVersion).toBe("2.3.0");
+    expect(map.algorithmVersion).toBe("2.4.0");
   });
 
   it("does not prefer continuing straight through a node (regression — the M4.8 bug)", () => {
@@ -281,6 +287,9 @@ describe("generateMap (radial)", () => {
     });
 
     it("radialClusterMaxSize: a bigger cap produces bigger hamlets", () => {
+      // Measured with the layout relaxation pass off (spec Section 7f): this
+      // is a *placement* knob, and relaxation deliberately normalizes node
+      // spacing afterward, which erases the "huddled" signature this counts.
       // Count nodes sitting very close to at least one other node — the
       // signature of cluster membership.
       function huddledCount(map: ReturnType<typeof generateMap>) {
@@ -291,8 +300,8 @@ describe("generateMap (radial)", () => {
       let small = 0;
       let large = 0;
       for (const seed of SEEDS) {
-        small += huddledCount(generateMap({ ...RADIAL_PARAMS, seed, radialClusterChance: 1, radialClusterMaxSize: 2 }));
-        large += huddledCount(generateMap({ ...RADIAL_PARAMS, seed, radialClusterChance: 1, radialClusterMaxSize: 5 }));
+        small += huddledCount(generateMap({ ...RADIAL_PARAMS, seed, layoutRelaxStrength: 0, radialClusterChance: 1, radialClusterMaxSize: 2 }));
+        large += huddledCount(generateMap({ ...RADIAL_PARAMS, seed, layoutRelaxStrength: 0, radialClusterChance: 1, radialClusterMaxSize: 5 }));
       }
       expect(large).toBeGreaterThan(small);
     });

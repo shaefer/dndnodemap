@@ -11,7 +11,7 @@ import type { GenerationParams } from "../types/map";
 // GenerationParams's shape changes in a way the byte layout must reflect —
 // see DECODERS below for the "never break an old link" discipline this
 // enables.
-export const PARAMS_CODEC_VERSION = 5;
+export const PARAMS_CODEC_VERSION = 6;
 
 export type DecodeResult =
   | { ok: true; params: GenerationParams }
@@ -105,6 +105,15 @@ function decodeV1(bytes: Uint8Array): DecodeResult {
     coastalChance: 0.05,
     interiorBoundaryDamping: 0.15,
     wildernessCheckMultiplier: 0.2,
+    // Predate the layout relaxation pass (M5.0). Unlike M4.9's fine-tuning
+    // params, these backfill to the *new* defaults rather than a
+    // behavior-preserving "off": ALGORITHM_VERSION bumped for this change
+    // anyway, so an old link can't reproduce byte-identically regardless —
+    // better that it gets the improved layout than a deliberately disabled
+    // pass.
+    layoutRelaxStrength: 0.6,
+    layoutNodeSpacing: 0.6,
+    layoutDirectionWeight: 0.8,
   };
   return { ok: true, params };
 }
@@ -241,6 +250,15 @@ function decodeV3(bytes: Uint8Array): DecodeResult {
     coastalChance: 0.05,
     interiorBoundaryDamping: 0.15,
     wildernessCheckMultiplier: 0.2,
+    // Predate the layout relaxation pass (M5.0). Unlike M4.9's fine-tuning
+    // params, these backfill to the *new* defaults rather than a
+    // behavior-preserving "off": ALGORITHM_VERSION bumped for this change
+    // anyway, so an old link can't reproduce byte-identically regardless —
+    // better that it gets the improved layout than a deliberately disabled
+    // pass.
+    layoutRelaxStrength: 0.6,
+    layoutNodeSpacing: 0.6,
+    layoutDirectionWeight: 0.8,
   };
   return { ok: true, params };
 }
@@ -333,6 +351,37 @@ function decodeV5(bytes: Uint8Array): DecodeResult {
   return { ok: true, params };
 }
 
+// --- codec v6 ------------------------------------------------------------------
+// 42 bytes = v5's 39 + 3 for the layout relaxation pass (M5.0, spec Section
+// 7f). Every other field keeps v5's exact encoding.
+const V6_LENGTH = 42;
+
+function encodeV6(params: GenerationParams): Uint8Array {
+  const bytes = new Uint8Array(V6_LENGTH);
+  bytes.set(encodeV5(params).subarray(1), 1); // reuse v5's byte-1-through-38 layout verbatim
+  bytes[0] = 6;
+  bytes[39] = clamp(Math.round(params.layoutRelaxStrength * 100), 0, 100);
+  bytes[40] = clamp(Math.round(params.layoutNodeSpacing * 100), 0, 255);
+  bytes[41] = clamp(Math.round(params.layoutDirectionWeight * 100), 0, 100);
+  return bytes;
+}
+
+function decodeV6(bytes: Uint8Array): DecodeResult {
+  if (bytes.length !== V6_LENGTH) {
+    return { ok: false, error: `Expected ${V6_LENGTH} bytes for codec v6, got ${bytes.length}.` };
+  }
+  const v5Result = decodeV5(bytes.subarray(0, V5_LENGTH));
+  if (!v5Result.ok) return v5Result;
+
+  const params: GenerationParams = {
+    ...v5Result.params,
+    layoutRelaxStrength: bytes[39] / 100,
+    layoutNodeSpacing: bytes[40] / 100,
+    layoutDirectionWeight: bytes[41] / 100,
+  };
+  return { ok: true, params };
+}
+
 // Every shipped codec version stays decodable forever — the direct analog of
 // ALGORITHM_VERSION's own "never break an old meaning" discipline. Add a new
 // entry here (and a new encodeVN) when GenerationParams's shape changes;
@@ -343,6 +392,7 @@ const DECODERS: Record<number, (bytes: Uint8Array) => DecodeResult> = {
   3: decodeV3,
   4: decodeV4,
   5: decodeV5,
+  6: decodeV6,
 };
 
 // --- base64url + public API ---------------------------------------------------
@@ -370,7 +420,7 @@ function fromBase64Url(code: string): Uint8Array | null {
 }
 
 export function encodeParams(params: GenerationParams): string {
-  return toBase64Url(encodeV5(params));
+  return toBase64Url(encodeV6(params));
 }
 
 export function decodeParams(code: string): DecodeResult {

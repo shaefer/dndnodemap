@@ -26,6 +26,9 @@ const DEFAULT_PARAMS: GenerationParams = {
   coastalChance: 0.05,
   interiorBoundaryDamping: 0.15,
   wildernessCheckMultiplier: 0.2,
+  layoutRelaxStrength: 0.6,
+  layoutNodeSpacing: 0.6,
+  layoutDirectionWeight: 0.8,
   nodeTypeBias: { settlement: 0.2, wilderness: 0.55, poi: 0.25 },
   wildernessWaterFraction: 0.15,
   settlementOutpostFraction: 0.25,
@@ -101,7 +104,7 @@ describe("generateMap", () => {
 
   it("sets the current algorithm version", () => {
     const map = generateMap(DEFAULT_PARAMS);
-    expect(map.algorithmVersion).toBe("2.3.0");
+    expect(map.algorithmVersion).toBe("2.4.0");
   });
 
   it("never assigns seasonal — that stays a manual, DM-authored call (Section 3c)", () => {
@@ -224,6 +227,24 @@ describe("generateMap", () => {
       radialClusterChance: 0.1,
       radialDeadEndPoiBias: 0.6,
       radialConvergenceRadius: 1.5,
+      radialInwardWeight: 0.15,
+      radialFalloffExponent: 1,
+      radialJitter: 0.3,
+      radialRimFraction: 0.85,
+      radialClusterMaxSize: 3,
+      radialClusterSpread: 0.35,
+      maxLargeSettlements: 2,
+      roadFraction: 0.5,
+      coastalChance: 0.05,
+      interiorBoundaryDamping: 0.15,
+      wildernessCheckMultiplier: 0.2,
+      // Relaxation off on purpose: this regression pins repairConnectivity's
+      // merge *order* via final edge lengths, which the post-placement visual
+      // pass would otherwise move around. Keeping it at 0 isolates the thing
+      // this test actually guards.
+      layoutRelaxStrength: 0,
+      layoutNodeSpacing: 0.6,
+      layoutDirectionWeight: 0.8,
       nodeTypeBias: { settlement: 0.15294117647058825, wilderness: 0.6588235294117647, poi: 0.18823529411764706 },
       wildernessWaterFraction: 0.3,
       settlementOutpostFraction: 0.25,

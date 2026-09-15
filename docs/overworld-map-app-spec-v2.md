@@ -688,6 +688,33 @@ All eleven live behind a collapsible **Advanced tuning** section in the Generati
 
 ---
 
+## 7f. Layout relaxation (`src/core/layoutRelax.ts`) — M5.0
+
+A geometry-only visual pass applied after placement, under **both** algorithms. Neither placement algorithm guarantees good *geometry*: nodes end up cramped against each other (radial hamlets especially — measured minimum separation as low as 0.016 grid units), and an edge's actual on-screen bearing drifts from the `CompassDir` it declares. Cramped nodes are exactly where a short step can't express its intended heading cleanly, so the two problems are the same problem.
+
+This is a **Magnetic Spring Model** layout (Sugiyama & Misue, *Graph Drawing by the Magnetic Spring Model*, JVLC 6(3), 1995): a force-directed relaxation extended with *magnetic* forces that rotate each edge into alignment with a given direction. Here the given direction is simply the one the edge already declares — **geometry moves to match the labels, never the reverse**. Directions are immutable in this pass, which is also why it cannot violate invariant 1.
+
+`relaxLayout` takes no `RngFn` and consumes zero `rng()` draws: it is fully deterministic given its input positions and cannot shift any other generation decision. It runs in `generateMap` after the placement/edge phase and **before** `markCheckRequired`/`generateTerrainZonesStep`, since terrain zones cluster by spatial proximity and must see final positions.
+
+**Each iteration does two things, in this order:**
+
+1. **Magnetic force** — rotate each edge about its midpoint toward its declared bearing, preserving current length. Scaled by `layoutDirectionWeight` and a cooling schedule. Uses the *unit* vector for the direction (`dirToVector`'s raw diagonals are sqrt(2) long — the same normalization `radialGenerator.ts`'s `stepVector` applies).
+2. **Separation, as a constraint projection** — push any pair closer than `layoutNodeSpacing` apart to exactly that distance, two sweeps, *not* scaled by the cooling step.
+
+**Order matters, and this is the load-bearing design decision.** Run as a rival *force* alongside the magnetic pull, separation loses: measured on radial output, minimum node separation got *worse* (0.016 -> 0.005) and crowded pairs tripled, because the magnetic force happily stacks nodes when several edges' demands conflict. Applied as a projection *after* the force step, spacing becomes a hard guarantee that holds no matter how hard directions are being chased — the last thing every iteration does is enforce it. This is exactly why the overlap-removal literature (PRISM, Voronoi cluster-busting, GTree) treats spacing as post-processing rather than as another force.
+
+**Safety clamps, applied on every position write:** positions stay within `[0, gridCols-1] x [0, gridRows-1]` (the range the canvas/exporter project into and the validator computes fractions against), and any boundary-marked node that would land inside invariant 4's forbidden inner-40% box is pushed straight back out along its cheapest escape axis. Node movement is the only thing that can break that invariant, so it gets an explicit guard rather than an after-the-fact check.
+
+| Field | Range | Default | What it controls |
+|---|---|---|---|
+| `layoutRelaxStrength` | 0.0-1.0 | 0.6 | Overall displacement; **0 disables the pass entirely**, returning the placement algorithm's own positions untouched |
+| `layoutNodeSpacing` | 0.0-2.0 grid units | 0.6 | The separation floor. Deliberately *below* a typical edge length (~1.0): at 1.0 it reshapes the whole map and direction accuracy gets worse; at 0.6 crowding hits zero while directions still improve. |
+| `layoutDirectionWeight` | 0.0-1.0 | 0.8 | How hard the magnetic force chases declared directions. Spacing is projected afterward regardless, so raising this never trades spacing away. |
+
+Measured effect at those defaults (mean absolute angular error between declared direction and actual bearing, summed over 8 seeds): **grid 1.482 -> 0.41 rad (-72%)**, **radial 1.803 -> 1.57 rad (-13%)**, with minimum node separation reaching the 0.6 floor and crowded pairs going to zero in both. Radial improves less because weighted-random growth inherently produces more direction mismatch to begin with.
+
+---
+
 ## 8. Validator (`src/core/validator.ts`)
 
 ```ts
@@ -875,6 +902,7 @@ Controls read/write the store's `draftParams` directly via `updateDraftParam` (S
 | Branch chance *(Radial style only)* | Slider | 0–100% | 15% |
 | Cluster chance *(Radial style only)* | Slider | 0–100% | 10% |
 | Dead-end → POI bias *(Radial style only)* | Slider | 0–100% | 60% |
+| Relaxation strength | Slider | 0–100% | 60% (0 = off) |
 | Advanced tuning | Collapsible section | — | collapsed; holds the eleven fine-tuning params of Section 7e (six radial-only, five shared across both styles) |
 | Convergence radius *(Radial style only)* | Slider | 0–5.0 grid units | 1.5 |
 | Settlements | Slider | 0–100% | 20% |
@@ -1012,7 +1040,7 @@ On app load: if `overworld-current` exists and its `algorithmVersion` matches th
 
 A generated map's full `GenerationParams` (seed included — `seed` is already a field of `GenerationParams`, not a separate value) can be encoded into one short, URL-safe **share code** carried as a query parameter, so pasting the address bar reproduces the identical map for anyone. This is an **encoding**, not a hash — it must be decodable back into the exact params, which a one-way hash (SHA-256, etc.) cannot do.
 
-### Byte layout (`PARAMS_CODEC_VERSION = 5`, 39 bytes)
+### Byte layout (`PARAMS_CODEC_VERSION = 6`, 42 bytes)
 
 | Bytes | Field | Encoding |
 |---|---|---|
@@ -1048,10 +1076,13 @@ A generated map's full `GenerationParams` (seed included — `seed` is already a
 | 36 | `coastalChance` | exact integer percent 0–100 |
 | 37 | `interiorBoundaryDamping` | exact integer percent 0–100 |
 | 38 | `wildernessCheckMultiplier` | exact integer percent 0–100 |
+| 39 | `layoutRelaxStrength` | exact integer percent 0–100 |
+| 40 | `layoutNodeSpacing` | fixed-point x100 over [0, 2.55] grid units |
+| 41 | `layoutDirectionWeight` | exact integer percent 0–100 |
 
-Base64url-encoded (`btoa`/`atob` — available identically in modern Node and every current browser, same cross-runtime assumption `crypto.randomUUID()` already relies on — with `+`/`/` swapped to `-`/`_` and `=` padding stripped) → 52 characters. Carried as the `map` query parameter, e.g. `?map=AQIDBAUG...`.
+Base64url-encoded (`btoa`/`atob` — available identically in modern Node and every current browser, same cross-runtime assumption `crypto.randomUUID()` already relies on — with `+`/`/` swapped to `-`/`_` and `=` padding stripped) → 56 characters. Carried as the `map` query parameter, e.g. `?map=AQIDBAUG...`.
 
-**`PARAMS_CODEC_VERSION 1` through `4`'s decoders stay registered forever** — never delete or repurpose a decoder version once shipped; this is the exact scenario the versioned-registry design exists for. `decodeV1` fills a sensible default (`biomeMix` = the Temperate Mixed region preset's values, Section 7c) for old 15-byte links that predate that field. `v2`→`v3` (M4.7.3) moved `gridCols`/`gridRows` from a single byte's two 4-bit nibbles (max 15 each) to one full byte each — `recommendedGridDimensions(80)` (Section 7d) recommends 18, which no longer fits a nibble. `v3`→`v4` (M4.8) added `placementAlgorithm` + the six radial-only fields; `decodeV1`/`decodeV2`/`decodeV3` all backfill `placementAlgorithm: "grid"` (exact, not a guess — no pre-v4 link could have been anything else) plus the radial defaults from Section 7e's table. `v4`→`v5` (M4.9) appended the eleven fine-tuning params, each backfilled by the older decoders with exactly the value that behavior was previously hardcoded to — so an old link still regenerates its original map. Only the current encoder (`encodeV5`) is ever produced going forward; `encodeV1`/`encodeV2`/`encodeV3` are gone (unused once superseded), though `encodeV3` stays as `encodeV4`'s internal building block (it reuses v3's byte 1-20 layout verbatim).
+**`PARAMS_CODEC_VERSION 1` through `5`'s decoders stay registered forever** — never delete or repurpose a decoder version once shipped; this is the exact scenario the versioned-registry design exists for. `decodeV1` fills a sensible default (`biomeMix` = the Temperate Mixed region preset's values, Section 7c) for old 15-byte links that predate that field. `v2`→`v3` (M4.7.3) moved `gridCols`/`gridRows` from a single byte's two 4-bit nibbles (max 15 each) to one full byte each — `recommendedGridDimensions(80)` (Section 7d) recommends 18, which no longer fits a nibble. `v3`→`v4` (M4.8) added `placementAlgorithm` + the six radial-only fields; `decodeV1`/`decodeV2`/`decodeV3` all backfill `placementAlgorithm: "grid"` (exact, not a guess — no pre-v4 link could have been anything else) plus the radial defaults from Section 7e's table. `v4`→`v5` (M4.9) appended the eleven fine-tuning params, each backfilled by the older decoders with exactly the value that behavior was previously hardcoded to — so an old link still regenerates its original map. `v5`->`v6` (M5.0) appended the three layout-relaxation params; unlike M4.9's backfills these decode to the *new* defaults rather than a behavior-preserving "off", since `ALGORITHM_VERSION` bumped for that change anyway and an old link cannot reproduce byte-identically regardless — better it gets the improved layout. Only the current encoder (`encodeV6`) is ever produced going forward; `encodeV1`/`encodeV2`/`encodeV3` are gone (unused once superseded), though `encodeV3` stays as `encodeV4`'s internal building block (it reuses v3's byte 1-20 layout verbatim).
 
 **Why the five single-slider fractions (`edgeDensity`, `checkRequiredFraction`, `boundaryFraction`, `wildernessWaterFraction`, `settlementOutpostFraction`) use exact integer percent, not generic fixed-point:** the Generation Panel's sliders (Section 11, View B) only ever produce `v/100` for integer `v` 0–100 before committing to `draftParams`. Encoding the integer and decoding via `/100` reconstructs the *exact* float the UI produced — zero precision loss, and no risk of an encoding epsilon flipping one of the many `rng() < fraction` comparisons the generator makes per node/edge. `nodeTypeBias` and `biomeMix` don't get the same treatment because `rebalanceShares`'s proportional rescale produces non-round floats regardless of encoding scheme — lower-stakes anyway, since `nodeTypeBias` only ever feeds a `Math.round(nodeCount × share)` budget calculation (Section 7) and `biomeMix` only ever feeds a weighted pick, neither a raw per-node RNG *comparison* the way the five percent fields do.
 

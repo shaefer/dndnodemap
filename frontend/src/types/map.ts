@@ -154,6 +154,12 @@ export interface GenerationParams {
   radialClusterMaxSize: number;        // 2–5, default 3 — largest hamlet cluster (size is a uniform roll from 2 to this)
   radialClusterSpread: number;         // 0.0–1.0, default 0.35 — how loosely a hamlet's members sit around their shared point
 
+  // --- Layout relaxation (spec Section 7f) — a geometry-only visual pass
+  // applied after placement, under BOTH algorithms.
+  layoutRelaxStrength: number;   // 0.0–1.0, default 0.6 — overall displacement; 0 disables the pass entirely
+  layoutNodeSpacing: number;     // grid units, default 0.6 — target minimum separation; deliberately below a typical edge length so it separates genuinely-crowded nodes without reshaping the whole map
+  layoutDirectionWeight: number; // 0.0–1.0, default 0.8 — how hard the magnetic force chases declared directions (spacing is a projection applied afterward regardless, so this never trades spacing away)
+
   // --- Shared taxonomy tuning — applies under BOTH placement algorithms,
   // since none of it depends on placement geometry (spec Section 7/7e).
   // Same rule as above: defaults reproduce the previously-hardcoded values.

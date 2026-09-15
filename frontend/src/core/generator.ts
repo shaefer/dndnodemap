@@ -23,6 +23,7 @@ import {
   targetDegreeFor,
   type Zone,
 } from "./generationShared";
+import { relaxLayout } from "./layoutRelax";
 import { generateRadial } from "./radialGenerator";
 import { makeRng, randInt, type RngFn } from "./rng";
 import { BIOMES } from "./taxonomy";
@@ -78,7 +79,15 @@ import { BIOMES } from "./taxonomy";
 // and spec Section 7e) rather than replaced — no params/UI/codec changes,
 // only the "radial" RNG sequence and resulting map shape. "grid" mode is
 // completely unaffected.
-export const ALGORITHM_VERSION = "2.3.0";
+// 2.4.0: new post-placement layout relaxation pass (spec Section 7f,
+// core/layoutRelax.ts) applied to both placement algorithms — a Magnetic
+// Spring Model relaxation that spaces cramped nodes apart and rotates edges
+// toward the CompassDir they already declare (directions themselves are
+// never relabeled). Consumes no rng() draws, but does move node positions,
+// so a given seed renders differently than it did at 2.3.0. Controlled by
+// layoutRelaxStrength/layoutNodeSpacing/layoutDirectionWeight; strength 0
+// restores exactly the pre-2.4.0 placement.
+export const ALGORITHM_VERSION = "2.4.0";
 
 // --- Step 1: node placement ("grid" algorithm) -------------------------------
 
@@ -448,6 +457,13 @@ export function generateMap(params: GenerationParams): WorldMap {
     built = grid.edges;
     effectiveParams = params;
   }
+
+  // Layout relaxation (spec Section 7f): a geometry-only visual pass shared
+  // by both placement algorithms — opens up cramped nodes and rotates edges
+  // toward the compass directions they declare. Runs before markCheckRequired
+  // and generateTerrainZonesStep because the latter clusters by spatial
+  // proximity and must see final positions. Consumes no rng() draws.
+  nodes = relaxLayout(nodes, built, effectiveParams, effectiveParams.gridCols, effectiveParams.gridRows);
 
   const checked = markCheckRequired(nodes, built, effectiveParams, rng);
   const edges = assignCheckTypes(checked, rng);

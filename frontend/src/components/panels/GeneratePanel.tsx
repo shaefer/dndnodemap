@@ -208,6 +208,18 @@ export function GeneratePanel() {
         )}
       </div>
 
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: "#888", textTransform: "uppercase", marginBottom: 6 }}>Layout polish</div>
+        <RangeRow
+          label="Relaxation strength"
+          min={0}
+          max={100}
+          value={Math.round(draftParams.layoutRelaxStrength * 100)}
+          displayValue={draftParams.layoutRelaxStrength === 0 ? "off" : `${Math.round(draftParams.layoutRelaxStrength * 100)}%`}
+          onChange={(v) => updateDraftParam("layoutRelaxStrength", v / 100)}
+        />
+      </div>
+
       {draftParams.placementAlgorithm === "radial" && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, color: "#888", textTransform: "uppercase", marginBottom: 6 }}>Radial shape</div>
@@ -487,6 +499,24 @@ export function GeneratePanel() {
                 />
               </>
             )}
+
+            <div style={{ fontSize: 11, color: "#888", margin: "10px 0 6px" }}>Layout relaxation (both styles)</div>
+            <RangeRow
+              label="Node spacing"
+              min={0}
+              max={200}
+              value={Math.round(draftParams.layoutNodeSpacing * 100)}
+              displayValue={draftParams.layoutNodeSpacing.toFixed(2)}
+              onChange={(v) => updateDraftParam("layoutNodeSpacing", v / 100)}
+            />
+            <RangeRow
+              label="Direction chasing"
+              min={0}
+              max={100}
+              value={Math.round(draftParams.layoutDirectionWeight * 100)}
+              displayValue={`${Math.round(draftParams.layoutDirectionWeight * 100)}%`}
+              onChange={(v) => updateDraftParam("layoutDirectionWeight", v / 100)}
+            />
 
             <div style={{ fontSize: 11, color: "#888", margin: "10px 0 6px" }}>
               Place &amp; route flavor (both styles)
