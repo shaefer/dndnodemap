@@ -76,3 +76,21 @@ export function recommendedGridDimensions(targetNodeCount: number): { gridCols: 
   const side = Math.ceil(Math.sqrt(targetNodeCount)) * GRID_LINEAR_FACTOR;
   return { gridCols: side, gridRows: side };
 }
+
+// The radial (core-out) placement algorithm's own grid-sizing formula (spec
+// Section 7e) — a square sized to fit spokeCount spokes of stepsPerSpoke
+// nodes each, radiating from a true center cell. core/radialGenerator.ts is
+// the sole consumer for actual generation; store/mapStore.ts re-exports this
+// same function so GeneratePanel.tsx can show the *same* derived size
+// read-only (radial mode doesn't expose gridCols/gridRows as tunable
+// sliders — the grid is a consequence of node count + spoke count, not an
+// independent input) without UI and generator ever computing it two
+// different ways.
+export function recommendedRadialGridDimensions(
+  targetNodeCount: number,
+  spokeCount: number
+): { gridCols: number; gridRows: number } {
+  const stepsPerSpoke = Math.max(1, Math.ceil((targetNodeCount - 1) / Math.max(1, spokeCount)));
+  const side = 2 * stepsPerSpoke + 1;
+  return { gridCols: side, gridRows: side };
+}

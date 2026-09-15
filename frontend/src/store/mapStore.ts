@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { oppositeDir } from "../core/compass";
-import { centroid, convexHull, padHull, recommendedGridDimensions } from "../core/geometry";
+import { centroid, convexHull, padHull, recommendedGridDimensions, recommendedRadialGridDimensions } from "../core/geometry";
 import { edgesForNode } from "../core/graph";
 import { generateMap } from "../core/generator";
 import { buildPrototypeMap } from "../core/prototypeMap";
@@ -22,6 +22,7 @@ export {
   isWaterBranch,
   padHull,
   recommendedGridDimensions,
+  recommendedRadialGridDimensions,
   REGION_PRESET_IDS,
   REGION_PRESETS,
 };
@@ -71,9 +72,16 @@ const initialGridSize = recommendedGridDimensions(49);
 
 export const DEFAULT_GENERATION_PARAMS: GenerationParams = {
   seed: randomSeed(),
+  placementAlgorithm: "grid",
   targetNodeCount: 49,
   gridCols: initialGridSize.gridCols,
   gridRows: initialGridSize.gridRows,
+  radialSpokeCount: 6,
+  radialCoreInterconnectivity: 0.5,
+  radialBranchChance: 0.15,
+  radialClusterChance: 0.1,
+  radialDeadEndPoiBias: 0.6,
+  radialConvergenceRadius: 1.5,
   nodeTypeBias: { settlement: 0.2, wilderness: 0.55, poi: 0.25 },
   wildernessWaterFraction: initialRegionPreset.wildernessWaterFraction,
   settlementOutpostFraction: 0.25,

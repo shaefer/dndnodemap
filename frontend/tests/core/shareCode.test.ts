@@ -23,9 +23,16 @@ function normalize(map: WorldMap) {
 
 const DEFAULT_PARAMS: GenerationParams = {
   seed: 123456789,
+  placementAlgorithm: "grid",
   targetNodeCount: 49,
   gridCols: 10,
   gridRows: 8,
+  radialSpokeCount: 6,
+  radialCoreInterconnectivity: 0.5,
+  radialBranchChance: 0.15,
+  radialClusterChance: 0.1,
+  radialDeadEndPoiBias: 0.6,
+  radialConvergenceRadius: 1.5,
   nodeTypeBias: { settlement: 0.2, wilderness: 0.55, poi: 0.25 },
   wildernessWaterFraction: 0.15,
   settlementOutpostFraction: 0.25,
@@ -131,7 +138,7 @@ describe("encodeParams / decodeParams", () => {
 
   it("produces a short, URL-safe code", () => {
     const code = encodeParams(DEFAULT_PARAMS);
-    expect(code.length).toBeLessThanOrEqual(28);
+    expect(code.length).toBeLessThanOrEqual(38);
     expect(code).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 
@@ -139,7 +146,7 @@ describe("encodeParams / decodeParams", () => {
     // Indirect check: decoding should succeed under the version this build
     // knows about, and PARAMS_CODEC_VERSION itself should be a small,
     // stable, forward-compatible integer.
-    expect(PARAMS_CODEC_VERSION).toBe(3);
+    expect(PARAMS_CODEC_VERSION).toBe(4);
     const result = decodeParams(encodeParams(DEFAULT_PARAMS));
     expect(result.ok).toBe(true);
   });
@@ -218,6 +225,73 @@ describe("encodeParams / decodeParams", () => {
     expect(result.params.gridRows).toBe(8);
     expect(result.params.biomeMix.forest).toBeCloseTo(0.3, 2);
     expect(() => generateMap(result.params)).not.toThrow();
+  });
+
+  it("a v3 (pre-radial) share code still decodes with grid defaults for the new fields (regression)", () => {
+    // Hand-construct a v3-shaped (21-byte) payload — what encodeParams used
+    // to produce before M4.8 added placementAlgorithm/the radial params.
+    // encodeV3 itself is gone from encodeParams's call path (superseded by
+    // encodeV4) but is still called internally by encodeV4, so build the
+    // bytes directly here instead, mirroring the v1/v2 regression tests.
+    const v3Bytes = new Uint8Array(21);
+    v3Bytes[0] = 3;
+    v3Bytes[3] = 0x30;
+    v3Bytes[4] = 0x39; // seed = 12345
+    v3Bytes[5] = 49; // targetNodeCount
+    v3Bytes[6] = 14; // gridCols
+    v3Bytes[7] = 14; // gridRows
+    v3Bytes[8] = Math.round(0.2 * 255);
+    v3Bytes[9] = Math.round(0.55 * 255);
+    v3Bytes[10] = 50; // edgeDensity
+    v3Bytes[11] = 25; // checkRequiredFraction
+    v3Bytes[12] = 70; // boundaryFraction
+    v3Bytes[13] = 15; // wildernessWaterFraction
+    v3Bytes[14] = 25; // settlementOutpostFraction
+    v3Bytes[15] = 0; // generateTerrainZones = false
+    v3Bytes[16] = Math.round(0.3 * 255); // biomeMix.forest
+    v3Bytes[17] = Math.round(0.15 * 255); // biomeMix.swamp
+    v3Bytes[18] = Math.round(0.25 * 255); // biomeMix.plains
+    v3Bytes[19] = Math.round(0.1 * 255); // biomeMix.desert
+    v3Bytes[20] = Math.round(0.1 * 255); // biomeMix.tundra
+
+    let binary = "";
+    for (const b of v3Bytes) binary += String.fromCharCode(b);
+    const code = btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+    const result = decodeParams(code);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.params.seed).toBe(12345);
+    expect(result.params.gridCols).toBe(14);
+    // A pre-radial link was necessarily a "grid" map — this default is
+    // exact, not a guess, unlike biomeMix's "closest reasonable default" for
+    // pre-M4.7.2 links.
+    expect(result.params.placementAlgorithm).toBe("grid");
+    expect(result.params.radialSpokeCount).toBe(6);
+    expect(() => generateMap(result.params)).not.toThrow();
+  });
+
+  it("round-trips placementAlgorithm and the radial params", () => {
+    const radialParams: GenerationParams = {
+      ...DEFAULT_PARAMS,
+      placementAlgorithm: "radial",
+      radialSpokeCount: 5,
+      radialCoreInterconnectivity: 0.73,
+      radialBranchChance: 0.22,
+      radialClusterChance: 0.18,
+      radialDeadEndPoiBias: 0.9,
+      radialConvergenceRadius: 2.3,
+    };
+    const result = decodeParams(encodeParams(radialParams));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.params.placementAlgorithm).toBe("radial");
+    expect(result.params.radialSpokeCount).toBe(5);
+    expect(result.params.radialCoreInterconnectivity).toBeCloseTo(0.73, 2);
+    expect(result.params.radialBranchChance).toBeCloseTo(0.22, 2);
+    expect(result.params.radialClusterChance).toBeCloseTo(0.18, 2);
+    expect(result.params.radialDeadEndPoiBias).toBeCloseTo(0.9, 2);
+    expect(result.params.radialConvergenceRadius).toBeCloseTo(2.3, 1);
   });
 
   it("rejects an unsupported version without throwing", () => {

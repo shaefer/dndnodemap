@@ -210,9 +210,16 @@ export function buildPrototypeMap(): WorldMap {
 
   const params: GenerationParams = {
     seed: 0,
+    placementAlgorithm: "grid",
     targetNodeCount: nodes.length,
     gridCols: PROTOTYPE_GRID_COLS,
     gridRows: PROTOTYPE_GRID_ROWS,
+    radialSpokeCount: 6,
+    radialCoreInterconnectivity: 0.5,
+    radialBranchChance: 0.15,
+    radialClusterChance: 0.1,
+    radialDeadEndPoiBias: 0.6,
+    radialConvergenceRadius: 1.5,
     nodeTypeBias: { settlement: 0.2, wilderness: 0.55, poi: 0.25 },
     wildernessWaterFraction: 0.15,
     settlementOutpostFraction: 0.25,

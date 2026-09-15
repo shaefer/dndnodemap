@@ -114,14 +114,35 @@ export interface WorldMap {
   updatedAt: string;
 }
 
+// Which placement/edge-building algorithm generates the map. "grid" is the
+// original scan-a-rectangular-grid approach; "radial" places a core
+// settlement at the center and grows spoke chains outward from it (spec
+// Section 7e). This is a real, generator-visible mode field — unlike region
+// presets or recommendedGridDimensions, the two algorithms are genuinely
+// different code paths, not different values for the same one.
+export type PlacementAlgorithm = "grid" | "radial";
+
 export interface GenerationParams {
   // Seed
   seed: number;              // required — 32-bit unsigned integer
 
+  placementAlgorithm: PlacementAlgorithm; // default "grid"
+
   // Map shape
   targetNodeCount: number;   // 20–80, default 49
-  gridCols: number;          // 6–14, default 10
-  gridRows: number;          // 5–12, default 8
+  gridCols: number;          // 6–14, default 10 ("grid" mode only — a "radial" map derives its own grid size, see radialSpokeCount below)
+  gridRows: number;          // 5–12, default 8 ("grid" mode only, same as above)
+
+  // --- "radial" mode only below — always present (flat, per spec Section
+  // 7f) even when placementAlgorithm is "grid", so switching modes back and
+  // forth never discards a user's tuning. Inert under "grid", the same way
+  // e.g. wildernessWaterFraction is inert when nodeTypeBias.wilderness is 0.
+  radialSpokeCount: number;            // 1–8, default 6 — how many of the 8 CompassDirs grow a spoke from the core
+  radialCoreInterconnectivity: number; // 0.0–1.0, default 0.5 — strength of the ring-connection falloff (high near core, taper outward)
+  radialBranchChance: number;          // 0.0–1.0, default 0.15 — chance a spoke forks into an extra node at a given radius step
+  radialClusterChance: number;         // 0.0–1.0, default 0.1 — chance a ring position places a small hamlet cluster instead of one node
+  radialDeadEndPoiBias: number;        // 0.0–1.0, default 0.6 — chance a true dead-end node (degree 1, pre-min-degree-topup) gets re-typed toward poi
+  radialConvergenceRadius: number;     // grid units, default 1.5 — distance threshold for the final cross-spoke connection pass
 
   // Node type frequency (three values must sum to 1.0)
   nodeTypeBias: {

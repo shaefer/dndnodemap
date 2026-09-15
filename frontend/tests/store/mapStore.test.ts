@@ -53,6 +53,24 @@ describe("mapStore", () => {
     expect(useMapStore.getState().draftParams.seed).toBe(secondSeed);
   });
 
+  it("defaults to the grid placement algorithm", () => {
+    expect(DEFAULT_GENERATION_PARAMS.placementAlgorithm).toBe("grid");
+  });
+
+  it("switching draftParams.placementAlgorithm to radial actually changes what generate() produces", () => {
+    useMapStore.getState().setSeedLocked(true);
+    useMapStore.getState().updateDraftParam("seed", 42);
+
+    useMapStore.getState().updateDraftParam("placementAlgorithm", "radial");
+    useMapStore.getState().generate();
+    const state = useMapStore.getState();
+    expect(state.map.params.placementAlgorithm).toBe("radial");
+    expect(state.violations).toEqual([]);
+    // Radial derives its own grid size — a real, observable difference from
+    // whatever gridCols/gridRows sat in draftParams before switching modes.
+    expect(state.map.params.gridCols).not.toBe(DEFAULT_GENERATION_PARAMS.gridCols);
+  });
+
   it("setSeedLocked(true) makes generate() reuse the same seed across calls", () => {
     useMapStore.getState().setSeedLocked(true);
     useMapStore.getState().updateDraftParam("seed", 42);

@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { toJSON } from "../../core/exporter";
 import {
+  recommendedRadialGridDimensions,
   REGION_PRESET_IDS,
   REGION_PRESETS,
   rebalanceShares,
@@ -8,7 +9,7 @@ import {
   useMapStore,
   type RegionPresetId,
 } from "../../store/mapStore";
-import type { GenerationParams } from "../../types/map";
+import type { GenerationParams, PlacementAlgorithm } from "../../types/map";
 
 interface RangeRowProps {
   label: string;
@@ -53,6 +54,11 @@ const BIOME_LABELS: Record<keyof GenerationParams["biomeMix"], string> = {
   desert: "Desert",
   tundra: "Tundra",
   jungle: "Jungle",
+};
+
+const PLACEMENT_ALGORITHM_LABELS: Record<PlacementAlgorithm, string> = {
+  grid: "Grid",
+  radial: "Radial (core-out)",
 };
 
 export function GeneratePanel() {
@@ -139,6 +145,21 @@ export function GeneratePanel() {
       <h2 style={{ fontSize: 14, margin: "0 0 12px" }}>Generate</h2>
 
       <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: "#888", textTransform: "uppercase", marginBottom: 6 }}>Generation style</div>
+        <select
+          value={draftParams.placementAlgorithm}
+          onChange={(e) => updateDraftParam("placementAlgorithm", e.target.value as PlacementAlgorithm)}
+          style={{ width: "100%", fontSize: 12 }}
+        >
+          {(Object.keys(PLACEMENT_ALGORITHM_LABELS) as PlacementAlgorithm[]).map((id) => (
+            <option key={id} value={id}>
+              {PLACEMENT_ALGORITHM_LABELS[id]}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 11, color: "#888", textTransform: "uppercase", marginBottom: 6 }}>Map shape</div>
         <RangeRow
           label="Node count"
@@ -148,26 +169,98 @@ export function GeneratePanel() {
           displayValue={String(draftParams.targetNodeCount)}
           onChange={(v) => updateDraftParam("targetNodeCount", v)}
         />
-        <RangeRow
-          label="Grid cols"
-          min={6}
-          max={20}
-          value={draftParams.gridCols}
-          displayValue={String(draftParams.gridCols)}
-          onChange={(v) => updateDraftParam("gridCols", v)}
-        />
-        <RangeRow
-          label="Grid rows"
-          min={5}
-          max={20}
-          value={draftParams.gridRows}
-          displayValue={String(draftParams.gridRows)}
-          onChange={(v) => updateDraftParam("gridRows", v)}
-        />
-        <button type="button" onClick={applyRecommendedGridSize} style={{ fontSize: 12 }}>
-          Auto-size grid
-        </button>
+        {draftParams.placementAlgorithm === "radial" ? (
+          // Radial mode derives its own grid size from node count + spoke
+          // count (spec Section 7e) — gridCols/gridRows aren't independent
+          // tunable inputs here, so show the actual value generate() will
+          // use instead of stale/irrelevant sliders.
+          (() => {
+            const derived = recommendedRadialGridDimensions(draftParams.targetNodeCount, draftParams.radialSpokeCount);
+            return (
+              <div style={{ fontSize: 12, color: "#666", marginBottom: 10 }}>
+                Grid size: {derived.gridCols}×{derived.gridRows} (derived from node count + spoke count)
+              </div>
+            );
+          })()
+        ) : (
+          <>
+            <RangeRow
+              label="Grid cols"
+              min={6}
+              max={20}
+              value={draftParams.gridCols}
+              displayValue={String(draftParams.gridCols)}
+              onChange={(v) => updateDraftParam("gridCols", v)}
+            />
+            <RangeRow
+              label="Grid rows"
+              min={5}
+              max={20}
+              value={draftParams.gridRows}
+              displayValue={String(draftParams.gridRows)}
+              onChange={(v) => updateDraftParam("gridRows", v)}
+            />
+            <button type="button" onClick={applyRecommendedGridSize} style={{ fontSize: 12 }}>
+              Auto-size grid
+            </button>
+          </>
+        )}
       </div>
+
+      {draftParams.placementAlgorithm === "radial" && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: "#888", textTransform: "uppercase", marginBottom: 6 }}>Radial shape</div>
+          <RangeRow
+            label="Spoke count"
+            min={1}
+            max={8}
+            value={draftParams.radialSpokeCount}
+            displayValue={String(draftParams.radialSpokeCount)}
+            onChange={(v) => updateDraftParam("radialSpokeCount", v)}
+          />
+          <RangeRow
+            label="Core interconnectivity"
+            min={0}
+            max={100}
+            value={Math.round(draftParams.radialCoreInterconnectivity * 100)}
+            displayValue={`${Math.round(draftParams.radialCoreInterconnectivity * 100)}%`}
+            onChange={(v) => updateDraftParam("radialCoreInterconnectivity", v / 100)}
+          />
+          <RangeRow
+            label="Branch chance"
+            min={0}
+            max={100}
+            value={Math.round(draftParams.radialBranchChance * 100)}
+            displayValue={`${Math.round(draftParams.radialBranchChance * 100)}%`}
+            onChange={(v) => updateDraftParam("radialBranchChance", v / 100)}
+          />
+          <RangeRow
+            label="Cluster chance"
+            min={0}
+            max={100}
+            value={Math.round(draftParams.radialClusterChance * 100)}
+            displayValue={`${Math.round(draftParams.radialClusterChance * 100)}%`}
+            onChange={(v) => updateDraftParam("radialClusterChance", v / 100)}
+          />
+          <RangeRow
+            label="Dead-end → POI bias"
+            min={0}
+            max={100}
+            value={Math.round(draftParams.radialDeadEndPoiBias * 100)}
+            displayValue={`${Math.round(draftParams.radialDeadEndPoiBias * 100)}%`}
+            onChange={(v) => updateDraftParam("radialDeadEndPoiBias", v / 100)}
+          />
+          <RangeRow
+            label="Convergence radius"
+            min={0}
+            max={50}
+            step={1}
+            value={Math.round(draftParams.radialConvergenceRadius * 10)}
+            displayValue={draftParams.radialConvergenceRadius.toFixed(1)}
+            onChange={(v) => updateDraftParam("radialConvergenceRadius", v / 10)}
+          />
+        </div>
+      )}
 
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 11, color: "#888", textTransform: "uppercase", marginBottom: 6 }}>Node type frequency</div>

@@ -45,7 +45,9 @@ src/core/
   graph.ts        # Graph algorithms — BFS, connectivity, hop counts
   geometry.ts     # Convex hull / hull padding — used by terrain wash and faction territory rendering
   taxonomy.ts     # Tier 1.5 fork predicates (isWaterBranch, isOutpostBranch) — Section 3c
-  generator.ts    # Map generation — orchestrates the above
+  generationShared.ts # Classification/connection-type/connectivity-repair logic shared by both placement algorithms — Section 7e
+  generator.ts    # Map generation ("grid" placement algorithm) — orchestrates the above, dispatches to radialGenerator.ts
+  radialGenerator.ts # Map generation ("radial" placement algorithm) — Section 7e
   validator.ts    # Invariant checks — returns violations, never throws
   exporter.ts     # toJSON(), toMarkdown(), toSVGString()
   names.ts        # Static name lists by node type
@@ -630,6 +632,35 @@ Widening `gridCols`/`gridRows`' practical range past 15 (`recommendedGridDimensi
 
 ---
 
+## 7e. Radial (core-out) generation algorithm (`src/core/radialGenerator.ts`) — M4.8
+
+A genuinely separate placement/edge-building algorithm, not a tweak to the grid one — selected via a new, real, generator-visible field: `GenerationParams.placementAlgorithm: "grid" | "radial"`. Unlike region presets or `recommendedGridDimensions` (both deliberately "no mode field" — they just set concrete values in existing params), radial *is* a different code path, so a mode field is the honest model here. `generateMap` (`core/generator.ts`) dispatches on it immediately; both paths still produce an ordinary `WorldMap` (same node/edge shape, same `gx`/`gy`/`gridCols`/`gridRows` coordinate space), so the validator, canvas renderer, exporter, and share-code codec need no radial-awareness at all.
+
+**Mental model:** a core settlement sits at the exact center of a square grid. Spokes — one per chosen `CompassDir`, up to 8 — grow outward from it as backbone chains, one node per radius step. Neighboring spokes get lateral "ring" connections whose likelihood tapers off with distance from the core (dense near the center, sparse toward the edge — the algorithm's defining trait, not a variant), and a final convergence pass connects nodes from *different* spokes that ended up geometrically close despite growing independently.
+
+**Sizing.** The grid is *derived*, not an independent input: `recommendedRadialGridDimensions(targetNodeCount, radialSpokeCount)` (`core/geometry.ts`, alongside `recommendedGridDimensions`) computes `stepsPerSpoke = ceil((targetNodeCount − 1) / spokeCount)` and sizes a square grid to `2·stepsPerSpoke + 1` (odd, so there's a true center cell). `generateMap` stamps this derived size back onto the `WorldMap.params` it returns — the input `gridCols`/`gridRows` are ignored entirely for radial maps, since the validator's boundary-placement check and the share-code codec both key off `map.params.gridCols`/`gridRows`, and those must reflect the grid radial mode *actually* used.
+
+**Radius-as-zone.** A node's radius fraction (`radius / stepsPerSpoke`) replaces the grid algorithm's rectangular col/row banding for `BoundaryMarker` eligibility — outermost step = "edge" (full `boundaryFraction` chance), a middle band = "mid" (damped), inner steps = "center" (none) — the same three-bucket shape validator invariant 4 expects either way.
+
+**Shared with the grid algorithm, not duplicated:** Tier 1.5/Tier 2 classification, connection-type inference, direction/degree bookkeeping, and the connectivity-repair safety net (`repairConnectivity`/`ensureMinimumDegree`) all live in `core/generationShared.ts` — a third module neither generator file owns, so behavior can't quietly drift between the two algorithms. Dependency direction is one-way (`generator.ts` → `radialGenerator.ts` → `generationShared.ts`, and `generator.ts` → `generationShared.ts` directly) — `radialGenerator.ts` never imports from `generator.ts`, avoiding a circular dependency.
+
+**New `GenerationParams` fields** (flat, always present — inert under `"grid"` the same way e.g. `wildernessWaterFraction` is inert when `nodeTypeBias.wilderness` is 0; kept flat rather than nested so switching `placementAlgorithm` back and forth never discards a user's tuning of the other algorithm's sliders):
+
+| Field | Range | Default | What it controls |
+|---|---|---|---|
+| `radialSpokeCount` | 1–8 | 6 | How many of the 8 `CompassDir`s grow a spoke from the core |
+| `radialCoreInterconnectivity` | 0.0–1.0 | 0.5 | Strength of the ring-connection falloff — core behavior, not a variant |
+| `radialConvergenceRadius` | grid units | 1.5 | Distance threshold for the final cross-spoke connection pass — core behavior, not a variant |
+| `radialBranchChance` | 0.0–1.0 | 0.15 | Chance a spoke forks into an extra node at a given radius step, heading toward a neighboring compass direction instead of straight along the spoke |
+| `radialClusterChance` | 0.0–1.0 | 0.1 | Chance a ring position places a small (2–3 node) hamlet cluster instead of one node — the "grouped settlements" knob |
+| `radialDeadEndPoiBias` | 0.0–1.0 | 0.6 | Chance a true dead-end node (degree 1, checked *before* `ensureMinimumDegree`'s top-up runs) gets re-typed toward `poi` — "paths that lead nowhere tend to end at a point of interest" |
+
+`radialBranchChance`/`radialClusterChance`/`radialDeadEndPoiBias` are the three "interesting, not essential" flavor variants selected for this milestone; a fourth (`waviness` — small angular drift off a spoke's pure bearing) was considered and explicitly deferred.
+
+**Share-code codec:** `PARAMS_CODEC_VERSION` → `4` (Section 13b) — `placementAlgorithm` + the six new fields appended to v3's 21 bytes (28 bytes total). `decodeV1`/`decodeV2`/`decodeV3` all backfill `placementAlgorithm: "grid"` + the radial defaults above for old links, exactly the "never break an old link" discipline the codec was designed around.
+
+---
+
 ## 8. Validator (`src/core/validator.ts`)
 
 ```ts
@@ -806,10 +837,18 @@ Controls read/write the store's `draftParams` directly via `updateDraftParam` (S
 
 | Control | Type | Range | Default |
 |---------|------|-------|---------|
+| Generation style | Select | Grid / Radial (core-out) | Grid |
 | Node count | Slider | 20–80 | 49 |
-| Grid cols | Slider | 6–20 | 14 (`recommendedGridDimensions(49)`) |
-| Grid rows | Slider | 5–20 | 14 (`recommendedGridDimensions(49)`) |
-| Auto-size grid | Button | — | recomputes Grid cols/rows from the current Node count (Section 7d) |
+| Grid cols *(Grid style only)* | Slider | 6–20 | 14 (`recommendedGridDimensions(49)`) |
+| Grid rows *(Grid style only)* | Slider | 5–20 | 14 (`recommendedGridDimensions(49)`) |
+| Auto-size grid *(Grid style only)* | Button | — | recomputes Grid cols/rows from the current Node count (Section 7d) |
+| Grid size *(Radial style only)* | Read-only text | — | `recommendedRadialGridDimensions(targetNodeCount, radialSpokeCount)`, Section 7e — not an independent input under this style |
+| Spoke count *(Radial style only)* | Slider | 1–8 | 6 |
+| Core interconnectivity *(Radial style only)* | Slider | 0–100% | 50% |
+| Branch chance *(Radial style only)* | Slider | 0–100% | 15% |
+| Cluster chance *(Radial style only)* | Slider | 0–100% | 10% |
+| Dead-end → POI bias *(Radial style only)* | Slider | 0–100% | 60% |
+| Convergence radius *(Radial style only)* | Slider | 0–5.0 grid units | 1.5 |
 | Settlements | Slider | 0–100% | 20% |
 | Wilderness | Slider | 0–100% | 55% |
 | Points of Interest | Slider | 0–100% | 25% |
@@ -834,6 +873,8 @@ Controls read/write the store's `draftParams` directly via `updateDraftParam` (S
 | Download JSON | Button | — | — |
 | Import JSON | Button | — | — |
 | Copy Link | Button | — | — |
+
+"Generation style" (Section 7e, M4.8) is a real, generator-visible `placementAlgorithm` field, unlike Region preset below — switching it changes which controls in this panel apply, not just which values are set. Under "Grid," Grid cols/Grid rows/Auto-size grid behave exactly as before. Under "Radial," those three are replaced by a read-only "Grid size" line (the actual grid is derived from Node count + Spoke count, not an independent input) and a new "Radial shape" section of six sliders appears. Every other control (node type frequency, traversal, Tier 1.5 forks, biome mix/region presets, seed) stays visible and equally meaningful under either style, since both algorithms share the same Tier 1.5/Tier 2 classification logic (`core/generationShared.ts`) — only placement geometry differs. Switching styles never discards the other style's slider values from `draftParams`; they're simply inert until switched back to, same as any other param that has no effect under some other field's current value.
 
 The three node type sliders (Settlements/Wilderness/Points of Interest — Tier 1, spec Section 3c) must normalize to sum to 1.0 on change — when one moves, the others scale proportionally to compensate (`rebalanceShares`, `store/mapStore.ts` — generalized from what was originally `rebalanceNodeTypeBias` once the six biome sliders needed the identical behavior). Show the actual percentage next to each slider. "Water"/"Outpost" are Tier 1.5 fork fractions, not Tier 1 shares, and don't participate in that renormalization. The six biome sliders (Forest/Swamp/Plains/Desert/Tundra/Jungle — `biomeMix`, Section 3a) renormalize among themselves the same way, independently of the Tier 1 three. "Region preset" (Section 7c) loads a named preset's `biomeMix` + water fraction into the sliders in one action; "Randomize region" does the same with a randomly-chosen preset. Neither is a persisted "mode" field — the select's displayed value is instead *derived* every render (`selectMatchingRegionPresetId`, `store/mapStore.ts`, epsilon-compared against each registered preset) from whatever `biomeMix`/`wildernessWaterFraction` currently are, so it always shows the preset that's actually active (including the one randomly chosen at load) and falls back to a real "Custom mix" option — not a disabled placeholder — the moment a biome slider is dragged away from it. "Copy Link" copies `window.location.href` (Section 13b) — the address bar already reflects the current map via `generate()`'s `history.replaceState` call, so this button is a convenience, not the only way to get a working link.
 
@@ -943,7 +984,7 @@ On app load: if `overworld-current` exists and its `algorithmVersion` matches th
 
 A generated map's full `GenerationParams` (seed included — `seed` is already a field of `GenerationParams`, not a separate value) can be encoded into one short, URL-safe **share code** carried as a query parameter, so pasting the address bar reproduces the identical map for anyone. This is an **encoding**, not a hash — it must be decodable back into the exact params, which a one-way hash (SHA-256, etc.) cannot do.
 
-### Byte layout (`PARAMS_CODEC_VERSION = 3`, 21 bytes)
+### Byte layout (`PARAMS_CODEC_VERSION = 4`, 28 bytes)
 
 | Bytes | Field | Encoding |
 |---|---|---|
@@ -961,10 +1002,17 @@ A generated map's full `GenerationParams` (seed included — `seed` is already a
 | 14 | `settlementOutpostFraction` | exact integer percent 0–100 |
 | 15 | flags | bit 0 = `generateTerrainZones`; bits 1–7 reserved |
 | 16-20 | `biomeMix.forest`, `.swamp`, `.plains`, `.desert`, `.tundra` | fixed-point 0–255 over [0,1] each — `.jungle` derived as `1 - (the other five)` on decode, then all six renormalized to sum to exactly 1 (M4.7.2; same drift-guard pattern as `nodeTypeBias` above) |
+| 21 | `placementAlgorithm` | bit 0: 0 = `"grid"`, 1 = `"radial"` (M4.8, Section 7e) |
+| 22 | `radialSpokeCount` | raw uint8 (range 1–8 fits) |
+| 23 | `radialCoreInterconnectivity` | fixed-point 0–255 over [0,1] |
+| 24 | `radialBranchChance` | fixed-point 0–255 over [0,1] |
+| 25 | `radialClusterChance` | fixed-point 0–255 over [0,1] |
+| 26 | `radialDeadEndPoiBias` | fixed-point 0–255 over [0,1] |
+| 27 | `radialConvergenceRadius` | fixed-point ×10 over [0, 25.5] grid units |
 
-Base64url-encoded (`btoa`/`atob` — available identically in modern Node and every current browser, same cross-runtime assumption `crypto.randomUUID()` already relies on — with `+`/`/` swapped to `-`/`_` and `=` padding stripped) → 28 characters. Carried as the `map` query parameter, e.g. `?map=AQIDBAUG...`.
+Base64url-encoded (`btoa`/`atob` — available identically in modern Node and every current browser, same cross-runtime assumption `crypto.randomUUID()` already relies on — with `+`/`/` swapped to `-`/`_` and `=` padding stripped) → 38 characters. Carried as the `map` query parameter, e.g. `?map=AQIDBAUG...`.
 
-**`PARAMS_CODEC_VERSION 1` and `2`'s decoders stay registered forever** — never delete or repurpose a decoder version once shipped; this is the exact scenario the versioned-registry design exists for. `decodeV1` fills a sensible default (`biomeMix` = the Temperate Mixed region preset's values, Section 7c) for old 15-byte links that predate that field. `v2`→`v3` (M4.7.3) moved `gridCols`/`gridRows` from a single byte's two 4-bit nibbles (max 15 each) to one full byte each — `recommendedGridDimensions(80)` (Section 7d) recommends 18, which no longer fits a nibble — so `decodeV2` stays registered to keep pre-M4.7.3 links decodable, but `encodeV1`/`encodeV2` themselves are gone: only the current encoder (`encodeV3`) is ever produced going forward, and nothing else in the app calls the old ones.
+**`PARAMS_CODEC_VERSION 1`, `2`, and `3`'s decoders stay registered forever** — never delete or repurpose a decoder version once shipped; this is the exact scenario the versioned-registry design exists for. `decodeV1` fills a sensible default (`biomeMix` = the Temperate Mixed region preset's values, Section 7c) for old 15-byte links that predate that field. `v2`→`v3` (M4.7.3) moved `gridCols`/`gridRows` from a single byte's two 4-bit nibbles (max 15 each) to one full byte each — `recommendedGridDimensions(80)` (Section 7d) recommends 18, which no longer fits a nibble. `v3`→`v4` (M4.8) added `placementAlgorithm` + the six radial-only fields; `decodeV1`/`decodeV2`/`decodeV3` all backfill `placementAlgorithm: "grid"` (exact, not a guess — no pre-v4 link could have been anything else) plus the radial defaults from Section 7e's table. Only the current encoder (`encodeV4`) is ever produced going forward; `encodeV1`/`encodeV2`/`encodeV3` are gone (unused once superseded), though `encodeV3` stays as `encodeV4`'s internal building block (it reuses v3's byte 1-20 layout verbatim).
 
 **Why the five single-slider fractions (`edgeDensity`, `checkRequiredFraction`, `boundaryFraction`, `wildernessWaterFraction`, `settlementOutpostFraction`) use exact integer percent, not generic fixed-point:** the Generation Panel's sliders (Section 11, View B) only ever produce `v/100` for integer `v` 0–100 before committing to `draftParams`. Encoding the integer and decoding via `/100` reconstructs the *exact* float the UI produced — zero precision loss, and no risk of an encoding epsilon flipping one of the many `rng() < fraction` comparisons the generator makes per node/edge. `nodeTypeBias` and `biomeMix` don't get the same treatment because `rebalanceShares`'s proportional rescale produces non-round floats regardless of encoding scheme — lower-stakes anyway, since `nodeTypeBias` only ever feeds a `Math.round(nodeCount × share)` budget calculation (Section 7) and `biomeMix` only ever feeds a weighted pick, neither a raw per-node RNG *comparison* the way the five percent fields do.
 
@@ -999,7 +1047,9 @@ The repo has two top-level packages: `frontend/` (the React/Vite app) and `backe
 │   │   │   ├── rng.ts
 │   │   │   ├── compass.ts
 │   │   │   ├── graph.ts
+│   │   │   ├── generationShared.ts # shared by generator.ts and radialGenerator.ts — NOT used directly post-M7 either
 │   │   │   ├── generator.ts       # NOT used directly — calls API instead
+│   │   │   ├── radialGenerator.ts # NOT used directly — calls API instead
 │   │   │   ├── validator.ts
 │   │   │   ├── exporter.ts
 │   │   │   └── names.ts
@@ -1051,7 +1101,9 @@ The repo has two top-level packages: `frontend/` (the React/Vite app) and `backe
 │   │       ├── rng.ts
 │   │       ├── compass.ts
 │   │       ├── graph.ts
+│   │       ├── generationShared.ts
 │   │       ├── generator.ts
+│   │       ├── radialGenerator.ts
 │   │       ├── validator.ts
 │   │       └── names.ts
 │   ├── template.yaml              # SAM template — Lambda + API Gateway definition
@@ -1386,6 +1438,12 @@ Acceptance: a map generated with the Frost preset never places a `jungle` node (
 Deliverables: `core/geometry.ts`'s `recommendedGridDimensions(targetNodeCount)` (Section 7d); `core/generator.ts`'s fixed `CANDIDATE_RADIUS` replaced with a density-aware `candidateRadiusFor(params)` (`ALGORITHM_VERSION` → `2.1.2`); `store/mapStore.ts`'s `applyRecommendedGridSize` action and a `DEFAULT_GENERATION_PARAMS.gridCols`/`gridRows` computed from it (14×14 at the default 49-node target, replacing the old fixed 10×8); `GeneratePanel.tsx` gains an "Auto-size grid" button and widened Grid cols/rows slider bounds (6–20). Widening the grid range past 15 broke `core/shareCode.ts`'s v1/v2 nibble-packed `gridCols`/`gridRows` byte (4 bits each, max 15) — discovered while implementing, not planned up front — so `PARAMS_CODEC_VERSION` also bumped to `3` (Section 13b): `gridCols`/`gridRows` each get a full byte now; `decodeV1`/`decodeV2` stay registered for old links, `encodeV1`/`encodeV2` themselves were removed as genuinely dead code once `encodeParams` moved to `encodeV3`.
 
 Acceptance: `recommendedGridDimensions(49)` returns `{ gridCols: 14, gridRows: 14 }` (the milestone's own worked example); the pre-existing 49-node/10×8 combination generates a bit-identical map to before this change (regression — guards the `CANDIDATE_RADIUS` recalibration); a map generated at the new 14×14 default (and an 18×18/80-node case) still passes all validator invariants across several seeds; an 18×18-grid share code round-trips exactly under codec v3 (regression — this is exactly the case v1/v2 couldn't represent); a hand-built v2 payload still decodes correctly (regression, mirroring the existing v1 one); visually verified via the same headless-Chrome-screenshot approach as M4.7/M4.7.2 — the new default should read as visibly less clustered than the old 10×8 default, without empty-looking dead space. Explicitly out of scope: any change to `ensureMinimumDegree`/`bestAvailableDirection`'s direction-fallback logic — this mitigates tight local clusters statistically, it doesn't prevent them.
+
+### M4.8 — Radial (core-out) generation algorithm
+
+Deliverables: `types/map.ts`'s `PlacementAlgorithm`/`GenerationParams.placementAlgorithm` + six new `radial*` fields (Section 7e); `core/generationShared.ts` (new) — classification/connection-type/direction-degree/connectivity-repair logic extracted from `core/generator.ts` so both placement algorithms share one implementation; `core/radialGenerator.ts` (new) — `generateRadial`, implementing the spoke/ring/convergence skeleton plus `radialBranchChance`/`radialClusterChance`/`radialDeadEndPoiBias`; `core/generator.ts`'s `generateMap` dispatches on `placementAlgorithm` and stamps radial's derived grid size back onto the returned map's `params` (`ALGORITHM_VERSION` → `2.2.0`); `core/geometry.ts`'s `recommendedRadialGridDimensions`; `core/shareCode.ts`'s `PARAMS_CODEC_VERSION` → `4` (`encodeV4`/`decodeV4`, `decodeV1`/`decodeV2`/`decodeV3` updated to backfill `placementAlgorithm: "grid"` + radial defaults); `GeneratePanel.tsx` gains a "Generation style" selector, a conditional Grid cols/rows vs. read-only derived-size display, and a "Radial shape" slider section shown only for radial.
+
+Acceptance: `generateMap` with `placementAlgorithm: "radial"` produces a `WorldMap` that passes every validator invariant across a range of seeds, spoke counts, and node counts; the core settlement sits at the exact, unjittered grid center every time; `map.params.gridCols`/`gridRows` reflect the derived size, not whatever was passed in; higher `radialCoreInterconnectivity`/`radialBranchChance`/`radialClusterChance` each produce measurably more edges/nodes on average across seeds than their lowest setting; `radialDeadEndPoiBias: 1` reliably retypes a constructed true-dead-end node to `poi` while `radialDeadEndPoiBias: 0` reliably leaves it alone; an old (pre-M4.8) share code still decodes with `placementAlgorithm: "grid"` and sensible radial defaults; visually verified via headless-Chrome screenshot across several spoke counts/variant settings/node counts (20–80) — spokes read as visually recognizable, interconnectivity visibly tapers outward, and each variant's effect is visible when pushed to its extreme. Explicitly out of scope: `waviness` (a fourth considered flavor variant, deferred) and any change to the grid algorithm's own behavior or output (verified unchanged for existing seeds/params).
 
 ### M5 — Edit panels
 Deliverables: `NodePanel.tsx`, `EdgePanel.tsx`, `DirectionPicker.tsx`, `NodeTypeSelect.tsx`

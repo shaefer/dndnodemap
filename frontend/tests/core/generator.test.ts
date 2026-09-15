@@ -5,9 +5,16 @@ import type { GenerationParams, WorldMap } from "../../src/types/map";
 
 const DEFAULT_PARAMS: GenerationParams = {
   seed: 12345,
+  placementAlgorithm: "grid",
   targetNodeCount: 49,
   gridCols: 10,
   gridRows: 8,
+  radialSpokeCount: 6,
+  radialCoreInterconnectivity: 0.5,
+  radialBranchChance: 0.15,
+  radialClusterChance: 0.1,
+  radialDeadEndPoiBias: 0.6,
+  radialConvergenceRadius: 1.5,
   nodeTypeBias: { settlement: 0.2, wilderness: 0.55, poi: 0.25 },
   wildernessWaterFraction: 0.15,
   settlementOutpostFraction: 0.25,
@@ -83,7 +90,7 @@ describe("generateMap", () => {
 
   it("sets the current algorithm version", () => {
     const map = generateMap(DEFAULT_PARAMS);
-    expect(map.algorithmVersion).toBe("2.1.2");
+    expect(map.algorithmVersion).toBe("2.2.0");
   });
 
   it("never assigns seasonal — that stays a manual, DM-authored call (Section 3c)", () => {
@@ -196,9 +203,16 @@ describe("generateMap", () => {
     // than a few times that is a sign the merge order picked a bad pair.
     const params: GenerationParams = {
       seed: 1077081874,
+      placementAlgorithm: "grid",
       targetNodeCount: 37,
       gridCols: 14,
       gridRows: 12,
+      radialSpokeCount: 6,
+      radialCoreInterconnectivity: 0.5,
+      radialBranchChance: 0.15,
+      radialClusterChance: 0.1,
+      radialDeadEndPoiBias: 0.6,
+      radialConvergenceRadius: 1.5,
       nodeTypeBias: { settlement: 0.15294117647058825, wilderness: 0.6588235294117647, poi: 0.18823529411764706 },
       wildernessWaterFraction: 0.3,
       settlementOutpostFraction: 0.25,

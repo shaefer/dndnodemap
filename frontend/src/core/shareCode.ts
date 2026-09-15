@@ -11,7 +11,7 @@ import type { GenerationParams } from "../types/map";
 // GenerationParams's shape changes in a way the byte layout must reflect —
 // see DECODERS below for the "never break an old link" discipline this
 // enables.
-export const PARAMS_CODEC_VERSION = 3;
+export const PARAMS_CODEC_VERSION = 4;
 
 export type DecodeResult =
   | { ok: true; params: GenerationParams }
@@ -79,6 +79,18 @@ function decodeV1(bytes: Uint8Array): DecodeResult {
     // Predates biomeMix (M4.7.2) — a link from before region presets existed
     // gets the same baseline a fresh app load without one would have used.
     biomeMix: { ...REGION_PRESETS.temperate_mixed.biomeMix },
+    // Predates placementAlgorithm/the radial params (M4.8) — every pre-v4
+    // link was necessarily a "grid" map, so that default is exact, not a
+    // guess; the radial-only fields get the same defaults a fresh app load
+    // would use (DEFAULT_GENERATION_PARAMS, store/mapStore.ts) since they're
+    // inert under "grid" anyway.
+    placementAlgorithm: "grid",
+    radialSpokeCount: 6,
+    radialCoreInterconnectivity: 0.5,
+    radialBranchChance: 0.15,
+    radialClusterChance: 0.1,
+    radialDeadEndPoiBias: 0.6,
+    radialConvergenceRadius: 1.5,
   };
   return { ok: true, params };
 }
@@ -192,6 +204,55 @@ function decodeV3(bytes: Uint8Array): DecodeResult {
     boundaryFraction: bytes[12] / 100,
     generateTerrainZones: (bytes[15] & 1) === 1,
     biomeMix,
+    // Predates placementAlgorithm/the radial params (M4.8) — see decodeV1's
+    // identical comment; every pre-v4 link was necessarily a "grid" map.
+    placementAlgorithm: "grid",
+    radialSpokeCount: 6,
+    radialCoreInterconnectivity: 0.5,
+    radialBranchChance: 0.15,
+    radialClusterChance: 0.1,
+    radialDeadEndPoiBias: 0.6,
+    radialConvergenceRadius: 1.5,
+  };
+  return { ok: true, params };
+}
+
+// --- codec v4 ------------------------------------------------------------------
+// 28 bytes = v3's 21 + 1 for placementAlgorithm + 6 for the radial-only
+// params (spec Section 7e — the new "radial" core-out placement algorithm).
+// Every other field keeps v3's exact encoding, just extended.
+const V4_LENGTH = 28;
+
+function encodeV4(params: GenerationParams): Uint8Array {
+  const bytes = new Uint8Array(V4_LENGTH);
+  bytes.set(encodeV3(params).subarray(1), 1); // reuse v3's byte-1-through-20 layout verbatim
+  bytes[0] = 4;
+  bytes[21] = params.placementAlgorithm === "radial" ? 1 : 0;
+  bytes[22] = clamp(Math.round(params.radialSpokeCount), 0, 255);
+  bytes[23] = clamp(Math.round(params.radialCoreInterconnectivity * 255), 0, 255);
+  bytes[24] = clamp(Math.round(params.radialBranchChance * 255), 0, 255);
+  bytes[25] = clamp(Math.round(params.radialClusterChance * 255), 0, 255);
+  bytes[26] = clamp(Math.round(params.radialDeadEndPoiBias * 255), 0, 255);
+  bytes[27] = clamp(Math.round(params.radialConvergenceRadius * 10), 0, 255);
+  return bytes;
+}
+
+function decodeV4(bytes: Uint8Array): DecodeResult {
+  if (bytes.length !== V4_LENGTH) {
+    return { ok: false, error: `Expected ${V4_LENGTH} bytes for codec v4, got ${bytes.length}.` };
+  }
+  const v3Result = decodeV3(bytes.subarray(0, V3_LENGTH));
+  if (!v3Result.ok) return v3Result;
+
+  const params: GenerationParams = {
+    ...v3Result.params,
+    placementAlgorithm: (bytes[21] & 1) === 1 ? "radial" : "grid",
+    radialSpokeCount: bytes[22],
+    radialCoreInterconnectivity: bytes[23] / 255,
+    radialBranchChance: bytes[24] / 255,
+    radialClusterChance: bytes[25] / 255,
+    radialDeadEndPoiBias: bytes[26] / 255,
+    radialConvergenceRadius: bytes[27] / 10,
   };
   return { ok: true, params };
 }
@@ -204,6 +265,7 @@ const DECODERS: Record<number, (bytes: Uint8Array) => DecodeResult> = {
   1: decodeV1,
   2: decodeV2,
   3: decodeV3,
+  4: decodeV4,
 };
 
 // --- base64url + public API ---------------------------------------------------
@@ -231,7 +293,7 @@ function fromBase64Url(code: string): Uint8Array | null {
 }
 
 export function encodeParams(params: GenerationParams): string {
-  return toBase64Url(encodeV3(params));
+  return toBase64Url(encodeV4(params));
 }
 
 export function decodeParams(code: string): DecodeResult {
