@@ -105,7 +105,7 @@ function decodeV1(bytes: Uint8Array): DecodeResult {
     coastalChance: 0.05,
     interiorBoundaryDamping: 0.15,
     wildernessCheckMultiplier: 0.2,
-    // Predate the layout relaxation pass (M5.0). Unlike M4.9's fine-tuning
+    // Predate the layout relaxation pass (M4.10). Unlike M4.9's fine-tuning
     // params, these backfill to the *new* defaults rather than a
     // behavior-preserving "off": ALGORITHM_VERSION bumped for this change
     // anyway, so an old link can't reproduce byte-identically regardless —
@@ -250,7 +250,7 @@ function decodeV3(bytes: Uint8Array): DecodeResult {
     coastalChance: 0.05,
     interiorBoundaryDamping: 0.15,
     wildernessCheckMultiplier: 0.2,
-    // Predate the layout relaxation pass (M5.0). Unlike M4.9's fine-tuning
+    // Predate the layout relaxation pass (M4.10). Unlike M4.9's fine-tuning
     // params, these backfill to the *new* defaults rather than a
     // behavior-preserving "off": ALGORITHM_VERSION bumped for this change
     // anyway, so an old link can't reproduce byte-identically regardless —
@@ -352,7 +352,7 @@ function decodeV5(bytes: Uint8Array): DecodeResult {
 }
 
 // --- codec v6 ------------------------------------------------------------------
-// 42 bytes = v5's 39 + 3 for the layout relaxation pass (M5.0, spec Section
+// 42 bytes = v5's 39 + 3 for the layout relaxation pass (M4.10, spec Section
 // 7f). Every other field keeps v5's exact encoding.
 const V6_LENGTH = 42;
 
