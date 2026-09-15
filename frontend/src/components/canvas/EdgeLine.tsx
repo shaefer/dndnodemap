@@ -18,9 +18,10 @@ interface EdgeLineProps {
   y1: number;
   x2: number;
   y2: number;
+  showDirection: boolean;
 }
 
-export function EdgeLine({ edge, x1, y1, x2, y2 }: EdgeLineProps) {
+export function EdgeLine({ edge, x1, y1, x2, y2, showDirection }: EdgeLineProps) {
   const style = CONNECTION_STYLE[edge.connectionType];
   const mx = (x1 + x2) / 2;
   const my = (y1 + y2) / 2;
@@ -61,17 +62,19 @@ export function EdgeLine({ edge, x1, y1, x2, y2 }: EdgeLineProps) {
           ▲
         </text>
       )}
-      <text
-        x={mx}
-        y={my - 5}
-        textAnchor="middle"
-        fontSize={9}
-        fill={edge.checkRequired ? CHECK_OVERLAY_COLOR : style.stroke}
-        opacity={0.85}
-        style={{ pointerEvents: "none" }}
-      >
-        {edge.direction}
-      </text>
+      {showDirection && (
+        <text
+          x={mx}
+          y={my - 5}
+          textAnchor="middle"
+          fontSize={9}
+          fill={edge.checkRequired ? CHECK_OVERLAY_COLOR : style.stroke}
+          opacity={0.85}
+          style={{ pointerEvents: "none" }}
+        >
+          {edge.direction}
+        </text>
+      )}
     </g>
   );
 }

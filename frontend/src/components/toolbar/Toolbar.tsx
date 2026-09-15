@@ -5,6 +5,8 @@ interface ToolbarProps {
   hasFactionData: boolean;
   onToggleTerrain: () => void;
   onToggleFactions: () => void;
+  directionLabelsVisible: boolean;
+  onToggleDirectionLabels: () => void;
   zoomPercent: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -34,6 +36,8 @@ export function Toolbar({
   hasFactionData,
   onToggleTerrain,
   onToggleFactions,
+  directionLabelsVisible,
+  onToggleDirectionLabels,
   zoomPercent,
   onZoomIn,
   onZoomOut,
@@ -74,6 +78,14 @@ export function Toolbar({
         style={buttonStyle(factionsVisible, !hasFactionData)}
       >
         ⚑ Factions
+      </button>
+      <button
+        type="button"
+        onClick={onToggleDirectionLabels}
+        title="Show/hide the compass-direction label on each path"
+        style={buttonStyle(directionLabelsVisible, false)}
+      >
+        ⇢ Directions
       </button>
       <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: "auto" }}>
         <button type="button" onClick={onFitToViewport} title="Fit the whole map to the viewport" style={buttonStyle(false, false)}>

@@ -62,6 +62,7 @@ export function MapCanvas() {
   // WorldMap data, so it lives here, not in the store.
   const [terrainVisible, setTerrainVisible] = useState(false);
   const [factionsVisible, setFactionsVisible] = useState(false);
+  const [directionLabelsVisible, setDirectionLabelsVisible] = useState(true);
 
   const gridCols = map.params.gridCols;
   const gridRows = map.params.gridRows;
@@ -194,6 +195,8 @@ export function MapCanvas() {
         hasFactionData={factions.length > 0}
         onToggleTerrain={() => setTerrainVisible((v) => !v)}
         onToggleFactions={() => setFactionsVisible((v) => !v)}
+        directionLabelsVisible={directionLabelsVisible}
+        onToggleDirectionLabels={() => setDirectionLabelsVisible((v) => !v)}
         zoomPercent={Math.round(transform.scale * 100)}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
@@ -234,7 +237,17 @@ export function MapCanvas() {
               const from = nodeById.get(edge.fromId);
               const to = nodeById.get(edge.toId);
               if (!from || !to) return null;
-              return <EdgeLine key={edge.id} edge={edge} x1={nx(from)} y1={ny(from)} x2={nx(to)} y2={ny(to)} />;
+              return (
+                <EdgeLine
+                  key={edge.id}
+                  edge={edge}
+                  x1={nx(from)}
+                  y1={ny(from)}
+                  x2={nx(to)}
+                  y2={ny(to)}
+                  showDirection={directionLabelsVisible}
+                />
+              );
             })}
           </g>
           <g>
