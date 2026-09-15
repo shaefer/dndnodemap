@@ -236,14 +236,14 @@ function buildEdgesGrid(nodes: MapNode[], params: GenerationParams, rng: RngFn):
         fromId: a.id,
         toId: b.id,
         direction,
-        connectionType: connectionTypeFor(a, b, rng),
+        connectionType: connectionTypeFor(a, b, rng, params),
         checkRequired: false,
       });
     }
   }
 
-  const connected = repairConnectivity(nodes, edges, rng);
-  return ensureMinimumDegree(nodes, connected, rng);
+  const connected = repairConnectivity(nodes, edges, rng, params);
+  return ensureMinimumDegree(nodes, connected, rng, params);
 }
 
 // --- Step 2.5: optional terrain zones ----------------------------------------
@@ -390,7 +390,7 @@ function markCheckRequired(
     let checkRequired = false;
     if (bothMountainish || oneMountainOneWilderness) checkRequired = true;
     else if (oneBoundaryOneWilderness) checkRequired = rng() < params.checkRequiredFraction;
-    else if (neitherBoundary) checkRequired = rng() < params.checkRequiredFraction * 0.2;
+    else if (neitherBoundary) checkRequired = rng() < params.checkRequiredFraction * params.wildernessCheckMultiplier;
 
     return { ...edge, checkRequired };
   });

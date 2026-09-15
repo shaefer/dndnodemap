@@ -137,12 +137,31 @@ export interface GenerationParams {
   // 7f) even when placementAlgorithm is "grid", so switching modes back and
   // forth never discards a user's tuning. Inert under "grid", the same way
   // e.g. wildernessWaterFraction is inert when nodeTypeBias.wilderness is 0.
-  radialSpokeCount: number;            // 1–8, default 6 — how many of the 8 CompassDirs grow a spoke from the core
-  radialCoreInterconnectivity: number; // 0.0–1.0, default 0.5 — strength of the ring-connection falloff (high near core, taper outward)
-  radialBranchChance: number;          // 0.0–1.0, default 0.15 — chance a spoke forks into an extra node at a given radius step
-  radialClusterChance: number;         // 0.0–1.0, default 0.1 — chance a ring position places a small hamlet cluster instead of one node
+  radialSpokeCount: number;            // 1–8, default 6 — how many initial arms fan out from the core
+  radialCoreInterconnectivity: number; // 0.0–1.0, default 0.5 — chance of accepting a collision-triggered join, tapering toward the rim
+  radialBranchChance: number;          // 0.0–1.0, default 0.15 — frontier-selection strategy (0 = twisty single threads, 1 = bushy branching)
+  radialClusterChance: number;         // 0.0–1.0, default 0.1 — chance a new-node placement puts down a hamlet cluster instead of one node
   radialDeadEndPoiBias: number;        // 0.0–1.0, default 0.6 — chance a true dead-end node (degree 1, pre-min-degree-topup) gets re-typed toward poi
-  radialConvergenceRadius: number;     // grid units, default 1.5 — distance threshold for the final cross-spoke connection pass
+  radialConvergenceRadius: number;     // grid units, default 1.5 — live collision-detection radius during growth
+
+  // Finer radial tuning (spec Section 7e). Every default reproduces the
+  // behavior these were hardcoded to before they became tunable, so leaving
+  // them alone changes nothing.
+  radialInwardWeight: number;          // 0.0–1.0, default 0.15 — relative weight of directions pointing back at the core (lower = paths avoid doubling back harder)
+  radialFalloffExponent: number;       // 0.1–5.0, default 1.0 — how sharply radialCoreInterconnectivity decays toward the rim (1 = linear, >1 = dense core only, <1 = stays dense further out)
+  radialJitter: number;                // 0.0–1.0, default 0.3 — positional irregularity of each placed node
+  radialRimFraction: number;           // 0.5–0.95, default 0.85 — radius fraction where the boundary-marked "rim" begins
+  radialClusterMaxSize: number;        // 2–5, default 3 — largest hamlet cluster (size is a uniform roll from 2 to this)
+  radialClusterSpread: number;         // 0.0–1.0, default 0.35 — how loosely a hamlet's members sit around their shared point
+
+  // --- Shared taxonomy tuning — applies under BOTH placement algorithms,
+  // since none of it depends on placement geometry (spec Section 7/7e).
+  // Same rule as above: defaults reproduce the previously-hardcoded values.
+  maxLargeSettlements: number;         // 0–6, default 2 — hard cap on city-or-metropolis settlements, regardless of map size
+  roadFraction: number;                // 0.0–1.0, default 0.5 — of settlement-touching connections, the share that read as roads rather than trails
+  coastalChance: number;               // 0.0–1.0, default 0.05 — chance a node reads as coastal without carrying a coastline boundary marker
+  interiorBoundaryDamping: number;     // 0.0–1.0, default 0.15 — how much rarer boundary markers are off the rim than on it
+  wildernessCheckMultiplier: number;   // 0.0–1.0, default 0.2 — checkRequiredFraction multiplier for edges where neither end is boundary-marked
 
   // Node type frequency (three values must sum to 1.0)
   nodeTypeBias: {

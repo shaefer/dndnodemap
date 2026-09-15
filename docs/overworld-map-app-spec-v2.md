@@ -659,6 +659,29 @@ A genuinely separate placement/edge-building algorithm, not a tweak to the grid 
 | `radialClusterChance` | 0.0–1.0 | 0.1 | Chance a new-node placement puts down a tight 2–3 node hamlet instead of a single node — the "grouped settlements" knob |
 | `radialDeadEndPoiBias` | 0.0–1.0 | 0.6 | Chance a true dead-end node (degree 1, checked *before* `ensureMinimumDegree`'s top-up runs) gets re-typed toward `poi` — "paths that lead nowhere tend to end at a point of interest" |
 
+**Fine-tuning params (M4.9).** Every behavior that was previously a hardcoded constant is now a param, each defaulting to exactly the value it was hardcoded to — so leaving them alone reproduces prior output bit-for-bit. Six are radial-specific:
+
+| Field | Range | Default | What it controls |
+|---|---|---|---|
+| `radialInwardWeight` | 0.0–1.0 | 0.15 | Relative weight of directions pointing back at the core. Lower = paths avoid doubling back harder. |
+| `radialFalloffExponent` | 0.1–5.0 | 1.0 | How sharply `radialCoreInterconnectivity` decays toward the rim. 1 = linear, >1 = dense core only, <1 = stays dense further out. |
+| `radialJitter` | 0.0–1.0 | 0.3 | Positional irregularity of each placed node |
+| `radialRimFraction` | 0.5–0.95 | 0.85 | Radius fraction where the boundary-marked rim begins. The "mid" band's inner edge scales with it proportionally (`MID_TO_RIM_RATIO`), so both bands move together. |
+| `radialClusterMaxSize` | 2–5 | 3 | Largest hamlet cluster; size is a uniform roll from 2 to this |
+| `radialClusterSpread` | 0.0–1.0 | 0.35 | How loosely a hamlet's members sit around their shared point |
+
+Five more apply under **both** placement algorithms, since none of them depends on placement geometry — they live in `core/generationShared.ts`'s `classifyNode`/`connectionTypeFor`/`pickCivilianScale` and `core/generator.ts`'s `markCheckRequired`:
+
+| Field | Range | Default | What it controls |
+|---|---|---|---|
+| `maxLargeSettlements` | 0–6 | 2 | Hard cap on city-or-metropolis settlements regardless of map size (was `MAX_CITY_OR_ABOVE`) |
+| `roadFraction` | 0.0–1.0 | 0.5 | Of settlement-touching connections, the share reading as roads rather than trails |
+| `coastalChance` | 0.0–1.0 | 0.05 | Chance a node reads as coastal without a coastline boundary marker (was `INDEPENDENT_COASTAL_CHANCE`) — drives `sea_route` frequency |
+| `interiorBoundaryDamping` | 0.0–1.0 | 0.15 | How much rarer boundary markers are off the rim than on it (was `MID_ZONE_BOUNDARY_DAMPING`) |
+| `wildernessCheckMultiplier` | 0.0–1.0 | 0.2 | `checkRequiredFraction` multiplier for edges where neither end is boundary-marked |
+
+All eleven live behind a collapsible **Advanced tuning** section in the Generation Panel (Section 11, View B) so the main panel stays scannable; the radial-specific six only render when Radial is the selected style.
+
 `radialBranchChance`/`radialClusterChance`/`radialDeadEndPoiBias` are the three "interesting, not essential" flavor knobs; a fourth (`waviness` — small angular drift off a pure compass bearing) was considered and explicitly deferred (and is largely moot now that direction choice is weighted-random rather than heading-locked).
 
 **Share-code codec:** `PARAMS_CODEC_VERSION` → `4` (Section 13b) — `placementAlgorithm` + the six new fields appended to v3's 21 bytes (28 bytes total). `decodeV1`/`decodeV2`/`decodeV3` all backfill `placementAlgorithm: "grid"` + the radial defaults above for old links, exactly the "never break an old link" discipline the codec was designed around.
@@ -852,6 +875,7 @@ Controls read/write the store's `draftParams` directly via `updateDraftParam` (S
 | Branch chance *(Radial style only)* | Slider | 0–100% | 15% |
 | Cluster chance *(Radial style only)* | Slider | 0–100% | 10% |
 | Dead-end → POI bias *(Radial style only)* | Slider | 0–100% | 60% |
+| Advanced tuning | Collapsible section | — | collapsed; holds the eleven fine-tuning params of Section 7e (six radial-only, five shared across both styles) |
 | Convergence radius *(Radial style only)* | Slider | 0–5.0 grid units | 1.5 |
 | Settlements | Slider | 0–100% | 20% |
 | Wilderness | Slider | 0–100% | 55% |
@@ -988,7 +1012,7 @@ On app load: if `overworld-current` exists and its `algorithmVersion` matches th
 
 A generated map's full `GenerationParams` (seed included — `seed` is already a field of `GenerationParams`, not a separate value) can be encoded into one short, URL-safe **share code** carried as a query parameter, so pasting the address bar reproduces the identical map for anyone. This is an **encoding**, not a hash — it must be decodable back into the exact params, which a one-way hash (SHA-256, etc.) cannot do.
 
-### Byte layout (`PARAMS_CODEC_VERSION = 4`, 28 bytes)
+### Byte layout (`PARAMS_CODEC_VERSION = 5`, 39 bytes)
 
 | Bytes | Field | Encoding |
 |---|---|---|
@@ -1013,10 +1037,21 @@ A generated map's full `GenerationParams` (seed included — `seed` is already a
 | 25 | `radialClusterChance` | fixed-point 0–255 over [0,1] |
 | 26 | `radialDeadEndPoiBias` | fixed-point 0–255 over [0,1] |
 | 27 | `radialConvergenceRadius` | fixed-point ×10 over [0, 25.5] grid units |
+| 28 | `radialInwardWeight` | exact integer percent 0–100 |
+| 29 | `radialFalloffExponent` | fixed-point ×10 over [0, 25.5] |
+| 30 | `radialJitter` | exact integer percent 0–100 |
+| 31 | `radialRimFraction` | exact integer percent 0–100 |
+| 32 | `radialClusterMaxSize` | raw uint8 |
+| 33 | `radialClusterSpread` | exact integer percent 0–100 |
+| 34 | `maxLargeSettlements` | raw uint8 |
+| 35 | `roadFraction` | exact integer percent 0–100 |
+| 36 | `coastalChance` | exact integer percent 0–100 |
+| 37 | `interiorBoundaryDamping` | exact integer percent 0–100 |
+| 38 | `wildernessCheckMultiplier` | exact integer percent 0–100 |
 
-Base64url-encoded (`btoa`/`atob` — available identically in modern Node and every current browser, same cross-runtime assumption `crypto.randomUUID()` already relies on — with `+`/`/` swapped to `-`/`_` and `=` padding stripped) → 38 characters. Carried as the `map` query parameter, e.g. `?map=AQIDBAUG...`.
+Base64url-encoded (`btoa`/`atob` — available identically in modern Node and every current browser, same cross-runtime assumption `crypto.randomUUID()` already relies on — with `+`/`/` swapped to `-`/`_` and `=` padding stripped) → 52 characters. Carried as the `map` query parameter, e.g. `?map=AQIDBAUG...`.
 
-**`PARAMS_CODEC_VERSION 1`, `2`, and `3`'s decoders stay registered forever** — never delete or repurpose a decoder version once shipped; this is the exact scenario the versioned-registry design exists for. `decodeV1` fills a sensible default (`biomeMix` = the Temperate Mixed region preset's values, Section 7c) for old 15-byte links that predate that field. `v2`→`v3` (M4.7.3) moved `gridCols`/`gridRows` from a single byte's two 4-bit nibbles (max 15 each) to one full byte each — `recommendedGridDimensions(80)` (Section 7d) recommends 18, which no longer fits a nibble. `v3`→`v4` (M4.8) added `placementAlgorithm` + the six radial-only fields; `decodeV1`/`decodeV2`/`decodeV3` all backfill `placementAlgorithm: "grid"` (exact, not a guess — no pre-v4 link could have been anything else) plus the radial defaults from Section 7e's table. Only the current encoder (`encodeV4`) is ever produced going forward; `encodeV1`/`encodeV2`/`encodeV3` are gone (unused once superseded), though `encodeV3` stays as `encodeV4`'s internal building block (it reuses v3's byte 1-20 layout verbatim).
+**`PARAMS_CODEC_VERSION 1` through `4`'s decoders stay registered forever** — never delete or repurpose a decoder version once shipped; this is the exact scenario the versioned-registry design exists for. `decodeV1` fills a sensible default (`biomeMix` = the Temperate Mixed region preset's values, Section 7c) for old 15-byte links that predate that field. `v2`→`v3` (M4.7.3) moved `gridCols`/`gridRows` from a single byte's two 4-bit nibbles (max 15 each) to one full byte each — `recommendedGridDimensions(80)` (Section 7d) recommends 18, which no longer fits a nibble. `v3`→`v4` (M4.8) added `placementAlgorithm` + the six radial-only fields; `decodeV1`/`decodeV2`/`decodeV3` all backfill `placementAlgorithm: "grid"` (exact, not a guess — no pre-v4 link could have been anything else) plus the radial defaults from Section 7e's table. `v4`→`v5` (M4.9) appended the eleven fine-tuning params, each backfilled by the older decoders with exactly the value that behavior was previously hardcoded to — so an old link still regenerates its original map. Only the current encoder (`encodeV5`) is ever produced going forward; `encodeV1`/`encodeV2`/`encodeV3` are gone (unused once superseded), though `encodeV3` stays as `encodeV4`'s internal building block (it reuses v3's byte 1-20 layout verbatim).
 
 **Why the five single-slider fractions (`edgeDensity`, `checkRequiredFraction`, `boundaryFraction`, `wildernessWaterFraction`, `settlementOutpostFraction`) use exact integer percent, not generic fixed-point:** the Generation Panel's sliders (Section 11, View B) only ever produce `v/100` for integer `v` 0–100 before committing to `draftParams`. Encoding the integer and decoding via `/100` reconstructs the *exact* float the UI produced — zero precision loss, and no risk of an encoding epsilon flipping one of the many `rng() < fraction` comparisons the generator makes per node/edge. `nodeTypeBias` and `biomeMix` don't get the same treatment because `rebalanceShares`'s proportional rescale produces non-round floats regardless of encoding scheme — lower-stakes anyway, since `nodeTypeBias` only ever feeds a `Math.round(nodeCount × share)` budget calculation (Section 7) and `biomeMix` only ever feeds a weighted pick, neither a raw per-node RNG *comparison* the way the five percent fields do.
 

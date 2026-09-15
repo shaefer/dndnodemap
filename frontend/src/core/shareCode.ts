@@ -11,7 +11,7 @@ import type { GenerationParams } from "../types/map";
 // GenerationParams's shape changes in a way the byte layout must reflect —
 // see DECODERS below for the "never break an old link" discipline this
 // enables.
-export const PARAMS_CODEC_VERSION = 4;
+export const PARAMS_CODEC_VERSION = 5;
 
 export type DecodeResult =
   | { ok: true; params: GenerationParams }
@@ -91,6 +91,20 @@ function decodeV1(bytes: Uint8Array): DecodeResult {
     radialClusterChance: 0.1,
     radialDeadEndPoiBias: 0.6,
     radialConvergenceRadius: 1.5,
+    // Predate the fine-tuning params (M4.9) — each default is exactly the
+    // value that behavior was hardcoded to before it became tunable, so an
+    // old link still regenerates its original map.
+    radialInwardWeight: 0.15,
+    radialFalloffExponent: 1,
+    radialJitter: 0.3,
+    radialRimFraction: 0.85,
+    radialClusterMaxSize: 3,
+    radialClusterSpread: 0.35,
+    maxLargeSettlements: 2,
+    roadFraction: 0.5,
+    coastalChance: 0.05,
+    interiorBoundaryDamping: 0.15,
+    wildernessCheckMultiplier: 0.2,
   };
   return { ok: true, params };
 }
@@ -213,6 +227,20 @@ function decodeV3(bytes: Uint8Array): DecodeResult {
     radialClusterChance: 0.1,
     radialDeadEndPoiBias: 0.6,
     radialConvergenceRadius: 1.5,
+    // Predate the fine-tuning params (M4.9) — each default is exactly the
+    // value that behavior was hardcoded to before it became tunable, so an
+    // old link still regenerates its original map.
+    radialInwardWeight: 0.15,
+    radialFalloffExponent: 1,
+    radialJitter: 0.3,
+    radialRimFraction: 0.85,
+    radialClusterMaxSize: 3,
+    radialClusterSpread: 0.35,
+    maxLargeSettlements: 2,
+    roadFraction: 0.5,
+    coastalChance: 0.05,
+    interiorBoundaryDamping: 0.15,
+    wildernessCheckMultiplier: 0.2,
   };
   return { ok: true, params };
 }
@@ -257,6 +285,54 @@ function decodeV4(bytes: Uint8Array): DecodeResult {
   return { ok: true, params };
 }
 
+// --- codec v5 ------------------------------------------------------------------
+// 39 bytes = v4's 28 + 11 for the fine-tuning params (M4.9) — six finer
+// radial knobs plus five shared taxonomy knobs that apply under both
+// placement algorithms. Every other field keeps v4's exact encoding.
+const V5_LENGTH = 39;
+
+function encodeV5(params: GenerationParams): Uint8Array {
+  const bytes = new Uint8Array(V5_LENGTH);
+  bytes.set(encodeV4(params).subarray(1), 1); // reuse v4's byte-1-through-27 layout verbatim
+  bytes[0] = 5;
+  bytes[28] = clamp(Math.round(params.radialInwardWeight * 100), 0, 100);
+  bytes[29] = clamp(Math.round(params.radialFalloffExponent * 10), 0, 255);
+  bytes[30] = clamp(Math.round(params.radialJitter * 100), 0, 100);
+  bytes[31] = clamp(Math.round(params.radialRimFraction * 100), 0, 100);
+  bytes[32] = clamp(Math.round(params.radialClusterMaxSize), 0, 255);
+  bytes[33] = clamp(Math.round(params.radialClusterSpread * 100), 0, 100);
+  bytes[34] = clamp(Math.round(params.maxLargeSettlements), 0, 255);
+  bytes[35] = clamp(Math.round(params.roadFraction * 100), 0, 100);
+  bytes[36] = clamp(Math.round(params.coastalChance * 100), 0, 100);
+  bytes[37] = clamp(Math.round(params.interiorBoundaryDamping * 100), 0, 100);
+  bytes[38] = clamp(Math.round(params.wildernessCheckMultiplier * 100), 0, 100);
+  return bytes;
+}
+
+function decodeV5(bytes: Uint8Array): DecodeResult {
+  if (bytes.length !== V5_LENGTH) {
+    return { ok: false, error: `Expected ${V5_LENGTH} bytes for codec v5, got ${bytes.length}.` };
+  }
+  const v4Result = decodeV4(bytes.subarray(0, V4_LENGTH));
+  if (!v4Result.ok) return v4Result;
+
+  const params: GenerationParams = {
+    ...v4Result.params,
+    radialInwardWeight: bytes[28] / 100,
+    radialFalloffExponent: bytes[29] / 10,
+    radialJitter: bytes[30] / 100,
+    radialRimFraction: bytes[31] / 100,
+    radialClusterMaxSize: bytes[32],
+    radialClusterSpread: bytes[33] / 100,
+    maxLargeSettlements: bytes[34],
+    roadFraction: bytes[35] / 100,
+    coastalChance: bytes[36] / 100,
+    interiorBoundaryDamping: bytes[37] / 100,
+    wildernessCheckMultiplier: bytes[38] / 100,
+  };
+  return { ok: true, params };
+}
+
 // Every shipped codec version stays decodable forever — the direct analog of
 // ALGORITHM_VERSION's own "never break an old meaning" discipline. Add a new
 // entry here (and a new encodeVN) when GenerationParams's shape changes;
@@ -266,6 +342,7 @@ const DECODERS: Record<number, (bytes: Uint8Array) => DecodeResult> = {
   2: decodeV2,
   3: decodeV3,
   4: decodeV4,
+  5: decodeV5,
 };
 
 // --- base64url + public API ---------------------------------------------------
@@ -293,7 +370,7 @@ function fromBase64Url(code: string): Uint8Array | null {
 }
 
 export function encodeParams(params: GenerationParams): string {
-  return toBase64Url(encodeV4(params));
+  return toBase64Url(encodeV5(params));
 }
 
 export function decodeParams(code: string): DecodeResult {

@@ -62,24 +62,14 @@ export const OUTPOST_KIND_VALUES: OutpostKind[] = ["monastery", "military_fort",
 export const POI_KIND_VALUES: PoiKind[] = ["ruin", "dungeon", "lair", "landmark"];
 export const BOUNDARY_REASONS: BoundaryReason[] = ["coastline", "mountain_range", "canyon_void", "magical_barrier"];
 
-// Mid-zone boundary markers occur at a much lower rate than edge-zone ones —
-// boundaryFraction is "how much of the edge concentrates a marker," not an
-// independent per-cell probability everywhere.
-export const MID_ZONE_BOUNDARY_DAMPING = 0.15;
-
-// A node independently reads as coastal at this low rate even without a
-// coastline boundary marker, so coastal flavor isn't confined to the
-// boundary ring (spec Section 7, Step 1).
-export const INDEPENDENT_COASTAL_CHANCE = 0.05;
-
 // Civilian settlements skew toward village/town — city and especially
 // metropolis should be rare regardless of targetNodeCount, so a hard cap
-// backs up the weighting rather than relying on probability alone.
+// (params.maxLargeSettlements, formerly a hardcoded 2) backs up the
+// weighting rather than relying on probability alone.
 const CIVILIAN_SCALE_WEIGHTS: Record<CivilianScale, number> = { village: 45, town: 35, city: 15, metropolis: 5 };
-const MAX_CITY_OR_ABOVE = 2;
 
-export function pickCivilianScale(rng: RngFn, cityOrAboveCount: number): CivilianScale {
-  const allowCityOrAbove = cityOrAboveCount < MAX_CITY_OR_ABOVE;
+export function pickCivilianScale(rng: RngFn, cityOrAboveCount: number, maxLargeSettlements: number): CivilianScale {
+  const allowCityOrAbove = cityOrAboveCount < maxLargeSettlements;
   const pool: CivilianScale[] = allowCityOrAbove ? ["village", "town", "city", "metropolis"] : ["village", "town"];
   const weights = pool.map((s) => CIVILIAN_SCALE_WEIGHTS[s]);
   const total = weights.reduce((a, b) => a + b, 0);
@@ -135,8 +125,8 @@ export interface NodeClassification {
 // system (grid: rectangular banding + a 2D safety-margin check; radial:
 // radius fraction, where the fraction thresholds themselves already carry
 // enough margin that no separate check is needed — always pass `true`).
-// `civilianState` is a shared mutable counter (MAX_CITY_OR_ABOVE must apply
-// across an entire generation run, not per-algorithm).
+// `civilianState` is a shared mutable counter (params.maxLargeSettlements
+// must apply across an entire generation run, not per-algorithm).
 export function classifyNode(
   type: NodeType,
   zone: Zone,
@@ -156,7 +146,7 @@ export function classifyNode(
     if (rng() < params.settlementOutpostFraction) {
       subtype = randPick(rng, OUTPOST_KIND_VALUES);
     } else {
-      subtype = pickCivilianScale(rng, civilianState.cityOrAboveCount);
+      subtype = pickCivilianScale(rng, civilianState.cityOrAboveCount, params.maxLargeSettlements);
       if (subtype === "city" || subtype === "metropolis") civilianState.cityOrAboveCount++;
     }
   } else {
@@ -167,16 +157,16 @@ export function classifyNode(
   if (zone === "edge") {
     if (rng() < params.boundaryFraction) boundary = { reason: randPick(rng, BOUNDARY_REASONS) };
   } else if (zone === "mid" && zoneAllowsMidBoundary) {
-    if (rng() < params.boundaryFraction * MID_ZONE_BOUNDARY_DAMPING) {
+    if (rng() < params.boundaryFraction * params.interiorBoundaryDamping) {
       boundary = { reason: randPick(rng, BOUNDARY_REASONS) };
     }
   }
 
-  const coastal = boundary?.reason === "coastline" ? true : rng() < INDEPENDENT_COASTAL_CHANCE;
+  const coastal = boundary?.reason === "coastline" ? true : rng() < params.coastalChance;
   return { subtype, boundary, coastal };
 }
 
-export function connectionTypeFor(a: MapNode, b: MapNode, rng: RngFn): ConnectionType {
+export function connectionTypeFor(a: MapNode, b: MapNode, rng: RngFn, params: GenerationParams): ConnectionType {
   const aMountain = a.boundary?.reason === "mountain_range";
   const bMountain = b.boundary?.reason === "mountain_range";
   const isMountainPair =
@@ -191,7 +181,7 @@ export function connectionTypeFor(a: MapNode, b: MapNode, rng: RngFn): Connectio
   const isSettlementPair =
     (a.type === "settlement" && (b.type === "settlement" || b.type === "wilderness")) ||
     (b.type === "settlement" && (a.type === "settlement" || a.type === "wilderness"));
-  if (isSettlementPair) return rng() < 0.5 ? "road" : "trail";
+  if (isSettlementPair) return rng() < params.roadFraction ? "road" : "trail";
 
   return "trail";
 }
@@ -281,7 +271,7 @@ export function connectedComponents(nodes: MapNode[], edges: MapEdge[]): string[
 // node with only 1 edge (invariant 5 requires >=2). Top up any such node
 // with its nearest not-yet-connected neighbor, picking whichever direction
 // is jointly free at both ends and closest to the ideal geometric heading.
-export function ensureMinimumDegree(nodes: MapNode[], edges: MapEdge[], rng: RngFn): MapEdge[] {
+export function ensureMinimumDegree(nodes: MapNode[], edges: MapEdge[], rng: RngFn, params: GenerationParams): MapEdge[] {
   const working = [...edges];
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
   for (const node of nodes) {
@@ -303,7 +293,7 @@ export function ensureMinimumDegree(nodes: MapNode[], edges: MapEdge[], rng: Rng
           fromId: node.id,
           toId: other.id,
           direction,
-          connectionType: connectionTypeFor(node, nodeById.get(other.id)!, rng),
+          connectionType: connectionTypeFor(node, nodeById.get(other.id)!, rng, params),
           checkRequired: false,
         });
         added = true;
@@ -320,7 +310,7 @@ export function ensureMinimumDegree(nodes: MapNode[], edges: MapEdge[], rng: Rng
 // biggest." See generator.ts's ALGORITHM_VERSION 2.1.1 history comment for
 // why size-ranked merging was wrong (absurdly long bridge edges on sparse
 // maps with several small isolated pockets).
-export function repairConnectivity(nodes: MapNode[], edges: MapEdge[], rng: RngFn): MapEdge[] {
+export function repairConnectivity(nodes: MapNode[], edges: MapEdge[], rng: RngFn, params: GenerationParams): MapEdge[] {
   const working = [...edges];
   let components = connectedComponents(nodes, working);
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
@@ -351,7 +341,7 @@ export function repairConnectivity(nodes: MapNode[], edges: MapEdge[], rng: RngF
       fromId,
       toId,
       direction,
-      connectionType: connectionTypeFor(fromNode, toNode, rng),
+      connectionType: connectionTypeFor(fromNode, toNode, rng, params),
       checkRequired: false,
     });
 

@@ -78,6 +78,7 @@ export function GeneratePanel() {
   const [importError, setImportError] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   function handleBiasChange(key: keyof GenerationParams["nodeTypeBias"], percent: number) {
     const rebalanced = rebalanceShares(draftParams.nodeTypeBias, key, percent / 100);
@@ -405,6 +406,133 @@ export function GeneratePanel() {
           {linkCopied ? "Copied!" : "Copy Link"}
         </button>
         {linkError && <div style={{ color: "#D85A30", fontSize: 11, marginTop: 4 }}>{linkError}</div>}
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen((open) => !open)}
+          style={{
+            width: "100%",
+            fontSize: 11,
+            color: "#888",
+            textTransform: "uppercase",
+            textAlign: "left",
+            background: "none",
+            border: "none",
+            borderTop: "1px solid #eee",
+            padding: "10px 0 6px",
+            cursor: "pointer",
+          }}
+        >
+          {advancedOpen ? "▾" : "▸"} Advanced tuning
+        </button>
+        {advancedOpen && (
+          <div>
+            <div style={{ fontSize: 11, color: "#aaa", marginBottom: 8 }}>
+              Every default here matches what the generator used before these became adjustable — leaving them alone
+              changes nothing.
+            </div>
+
+            {draftParams.placementAlgorithm === "radial" && (
+              <>
+                <div style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>Radial growth</div>
+                <RangeRow
+                  label="Backtrack willingness"
+                  min={0}
+                  max={100}
+                  value={Math.round(draftParams.radialInwardWeight * 100)}
+                  displayValue={`${Math.round(draftParams.radialInwardWeight * 100)}%`}
+                  onChange={(v) => updateDraftParam("radialInwardWeight", v / 100)}
+                />
+                <RangeRow
+                  label="Density falloff (gradual → sharp)"
+                  min={1}
+                  max={50}
+                  value={Math.round(draftParams.radialFalloffExponent * 10)}
+                  displayValue={draftParams.radialFalloffExponent.toFixed(1)}
+                  onChange={(v) => updateDraftParam("radialFalloffExponent", v / 10)}
+                />
+                <RangeRow
+                  label="Position jitter"
+                  min={0}
+                  max={100}
+                  value={Math.round(draftParams.radialJitter * 100)}
+                  displayValue={`${Math.round(draftParams.radialJitter * 100)}%`}
+                  onChange={(v) => updateDraftParam("radialJitter", v / 100)}
+                />
+                <RangeRow
+                  label="Rim begins at"
+                  min={50}
+                  max={95}
+                  value={Math.round(draftParams.radialRimFraction * 100)}
+                  displayValue={`${Math.round(draftParams.radialRimFraction * 100)}%`}
+                  onChange={(v) => updateDraftParam("radialRimFraction", v / 100)}
+                />
+                <RangeRow
+                  label="Largest hamlet"
+                  min={2}
+                  max={5}
+                  value={draftParams.radialClusterMaxSize}
+                  displayValue={`${draftParams.radialClusterMaxSize} nodes`}
+                  onChange={(v) => updateDraftParam("radialClusterMaxSize", v)}
+                />
+                <RangeRow
+                  label="Hamlet spread"
+                  min={0}
+                  max={100}
+                  value={Math.round(draftParams.radialClusterSpread * 100)}
+                  displayValue={`${Math.round(draftParams.radialClusterSpread * 100)}%`}
+                  onChange={(v) => updateDraftParam("radialClusterSpread", v / 100)}
+                />
+              </>
+            )}
+
+            <div style={{ fontSize: 11, color: "#888", margin: "10px 0 6px" }}>
+              Place &amp; route flavor (both styles)
+            </div>
+            <RangeRow
+              label="Max cities/metropolises"
+              min={0}
+              max={6}
+              value={draftParams.maxLargeSettlements}
+              displayValue={String(draftParams.maxLargeSettlements)}
+              onChange={(v) => updateDraftParam("maxLargeSettlements", v)}
+            />
+            <RangeRow
+              label="Roads vs trails"
+              min={0}
+              max={100}
+              value={Math.round(draftParams.roadFraction * 100)}
+              displayValue={`${Math.round(draftParams.roadFraction * 100)}% roads`}
+              onChange={(v) => updateDraftParam("roadFraction", v / 100)}
+            />
+            <RangeRow
+              label="Inland coastal flavor"
+              min={0}
+              max={100}
+              value={Math.round(draftParams.coastalChance * 100)}
+              displayValue={`${Math.round(draftParams.coastalChance * 100)}%`}
+              onChange={(v) => updateDraftParam("coastalChance", v / 100)}
+            />
+            <RangeRow
+              label="Interior boundary markers"
+              min={0}
+              max={100}
+              value={Math.round(draftParams.interiorBoundaryDamping * 100)}
+              displayValue={`${Math.round(draftParams.interiorBoundaryDamping * 100)}%`}
+              onChange={(v) => updateDraftParam("interiorBoundaryDamping", v / 100)}
+            />
+            <RangeRow
+              label="Interior route difficulty"
+              min={0}
+              max={100}
+              value={Math.round(draftParams.wildernessCheckMultiplier * 100)}
+              displayValue={`${Math.round(draftParams.wildernessCheckMultiplier * 100)}%`}
+              onChange={(v) => updateDraftParam("wildernessCheckMultiplier", v / 100)}
+            />
+          </div>
+        )}
       </div>
 
       <div>

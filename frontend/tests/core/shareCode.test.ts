@@ -33,6 +33,17 @@ const DEFAULT_PARAMS: GenerationParams = {
   radialClusterChance: 0.1,
   radialDeadEndPoiBias: 0.6,
   radialConvergenceRadius: 1.5,
+  radialInwardWeight: 0.15,
+  radialFalloffExponent: 1,
+  radialJitter: 0.3,
+  radialRimFraction: 0.85,
+  radialClusterMaxSize: 3,
+  radialClusterSpread: 0.35,
+  maxLargeSettlements: 2,
+  roadFraction: 0.5,
+  coastalChance: 0.05,
+  interiorBoundaryDamping: 0.15,
+  wildernessCheckMultiplier: 0.2,
   nodeTypeBias: { settlement: 0.2, wilderness: 0.55, poi: 0.25 },
   wildernessWaterFraction: 0.15,
   settlementOutpostFraction: 0.25,
@@ -138,7 +149,7 @@ describe("encodeParams / decodeParams", () => {
 
   it("produces a short, URL-safe code", () => {
     const code = encodeParams(DEFAULT_PARAMS);
-    expect(code.length).toBeLessThanOrEqual(38);
+    expect(code.length).toBeLessThanOrEqual(52);
     expect(code).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 
@@ -146,7 +157,7 @@ describe("encodeParams / decodeParams", () => {
     // Indirect check: decoding should succeed under the version this build
     // knows about, and PARAMS_CODEC_VERSION itself should be a small,
     // stable, forward-compatible integer.
-    expect(PARAMS_CODEC_VERSION).toBe(4);
+    expect(PARAMS_CODEC_VERSION).toBe(5);
     const result = decodeParams(encodeParams(DEFAULT_PARAMS));
     expect(result.ok).toBe(true);
   });
@@ -292,6 +303,92 @@ describe("encodeParams / decodeParams", () => {
     expect(result.params.radialClusterChance).toBeCloseTo(0.18, 2);
     expect(result.params.radialDeadEndPoiBias).toBeCloseTo(0.9, 2);
     expect(result.params.radialConvergenceRadius).toBeCloseTo(2.3, 1);
+  });
+
+  it("a v4 (pre-fine-tuning) share code still decodes with the previously-hardcoded values (regression)", () => {
+    // Hand-construct a v4-shaped (28-byte) payload — what encodeParams
+    // produced before M4.9 made the fine-tuning constants tunable. Each
+    // backfilled default must be exactly the value that behavior was
+    // hardcoded to, so an old link regenerates its original map.
+    const v4Bytes = new Uint8Array(28);
+    v4Bytes[0] = 4;
+    v4Bytes[3] = 0x30;
+    v4Bytes[4] = 0x39; // seed = 12345
+    v4Bytes[5] = 49; // targetNodeCount
+    v4Bytes[6] = 14; // gridCols
+    v4Bytes[7] = 14; // gridRows
+    v4Bytes[8] = Math.round(0.2 * 255);
+    v4Bytes[9] = Math.round(0.55 * 255);
+    v4Bytes[10] = 50; // edgeDensity
+    v4Bytes[11] = 25; // checkRequiredFraction
+    v4Bytes[12] = 70; // boundaryFraction
+    v4Bytes[13] = 15; // wildernessWaterFraction
+    v4Bytes[14] = 25; // settlementOutpostFraction
+    v4Bytes[15] = 0; // generateTerrainZones = false
+    v4Bytes[16] = Math.round(0.3 * 255);
+    v4Bytes[17] = Math.round(0.15 * 255);
+    v4Bytes[18] = Math.round(0.25 * 255);
+    v4Bytes[19] = Math.round(0.1 * 255);
+    v4Bytes[20] = Math.round(0.1 * 255);
+    v4Bytes[21] = 1; // placementAlgorithm = radial
+    v4Bytes[22] = 6; // radialSpokeCount
+    v4Bytes[23] = Math.round(0.5 * 255);
+    v4Bytes[24] = Math.round(0.15 * 255);
+    v4Bytes[25] = Math.round(0.1 * 255);
+    v4Bytes[26] = Math.round(0.6 * 255);
+    v4Bytes[27] = 15; // radialConvergenceRadius = 1.5
+
+    let binary = "";
+    for (const b of v4Bytes) binary += String.fromCharCode(b);
+    const code = btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+    const result = decodeParams(code);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.params.placementAlgorithm).toBe("radial");
+    expect(result.params.radialInwardWeight).toBeCloseTo(0.15, 5);
+    expect(result.params.radialFalloffExponent).toBe(1);
+    expect(result.params.radialJitter).toBeCloseTo(0.3, 5);
+    expect(result.params.radialRimFraction).toBeCloseTo(0.85, 5);
+    expect(result.params.radialClusterMaxSize).toBe(3);
+    expect(result.params.radialClusterSpread).toBeCloseTo(0.35, 5);
+    expect(result.params.maxLargeSettlements).toBe(2);
+    expect(result.params.roadFraction).toBeCloseTo(0.5, 5);
+    expect(result.params.coastalChance).toBeCloseTo(0.05, 5);
+    expect(result.params.interiorBoundaryDamping).toBeCloseTo(0.15, 5);
+    expect(result.params.wildernessCheckMultiplier).toBeCloseTo(0.2, 5);
+    expect(() => generateMap(result.params)).not.toThrow();
+  });
+
+  it("round-trips the fine-tuning params", () => {
+    const tuned: GenerationParams = {
+      ...DEFAULT_PARAMS,
+      radialInwardWeight: 0.42,
+      radialFalloffExponent: 2.5,
+      radialJitter: 0.7,
+      radialRimFraction: 0.6,
+      radialClusterMaxSize: 5,
+      radialClusterSpread: 0.9,
+      maxLargeSettlements: 5,
+      roadFraction: 0.8,
+      coastalChance: 0.3,
+      interiorBoundaryDamping: 0.65,
+      wildernessCheckMultiplier: 0.45,
+    };
+    const result = decodeParams(encodeParams(tuned));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.params.radialInwardWeight).toBeCloseTo(0.42, 2);
+    expect(result.params.radialFalloffExponent).toBeCloseTo(2.5, 1);
+    expect(result.params.radialJitter).toBeCloseTo(0.7, 2);
+    expect(result.params.radialRimFraction).toBeCloseTo(0.6, 2);
+    expect(result.params.radialClusterMaxSize).toBe(5);
+    expect(result.params.radialClusterSpread).toBeCloseTo(0.9, 2);
+    expect(result.params.maxLargeSettlements).toBe(5);
+    expect(result.params.roadFraction).toBeCloseTo(0.8, 2);
+    expect(result.params.coastalChance).toBeCloseTo(0.3, 2);
+    expect(result.params.interiorBoundaryDamping).toBeCloseTo(0.65, 2);
+    expect(result.params.wildernessCheckMultiplier).toBeCloseTo(0.45, 2);
   });
 
   it("rejects an unsupported version without throwing", () => {

@@ -18,7 +18,7 @@ import {
   repairConnectivity,
   type Zone,
 } from "./generationShared";
-import { randPick, shuffle, type RngFn } from "./rng";
+import { randInt, randPick, shuffle, type RngFn } from "./rng";
 
 // The "radial" (core-out) placement algorithm (spec Section 7e): a core
 // settlement sits at the exact center of the grid, and paths grow outward
@@ -56,10 +56,15 @@ function clamp(v: number, min: number, max: number): number {
 // Radius fraction -> Zone, replacing the old grid algorithm's rectangular
 // col/row banding with distance-from-core — a natural fit for a core-out
 // layout either way.
-function radiusZone(radius: number, maxRadius: number): Zone {
+// The "mid" band's inner edge scales with the rim so the two bands keep
+// their original proportions as radialRimFraction moves (at the 0.85
+// default this reproduces the previously-hardcoded 0.85 / 0.5 pair).
+const MID_TO_RIM_RATIO = 0.5 / 0.85;
+
+function radiusZone(radius: number, maxRadius: number, rimFraction: number): Zone {
   const frac = maxRadius <= 0 ? 1 : radius / maxRadius;
-  if (frac >= 0.85) return "edge";
-  if (frac >= 0.5) return "mid";
+  if (frac >= rimFraction) return "edge";
+  if (frac >= rimFraction * MID_TO_RIM_RATIO) return "mid";
   return "center";
 }
 
@@ -87,8 +92,6 @@ function boundaryAllowedAt(gx: number, gy: number, gridSize: number): boolean {
 // (which the newest-first bias already picks back up right away most of the
 // time) — no measurable effect on the result. Driving selection strategy
 // directly gives a real, visible difference instead.
-const INWARD_WEIGHT_FLOOR = 0.15; // soft floor so heading toward the center stays possible, just discouraged
-
 export interface RadialResult {
   nodes: MapNode[];
   edges: MapEdge[];
@@ -121,7 +124,7 @@ export function generateRadial(params: GenerationParams, rng: RngFn): RadialResu
   }
 
   function makeNode(type: NodeType, gx: number, gy: number): MapNode {
-    const zone = radiusZone(radiusOf(gx, gy), maxRadius);
+    const zone = radiusZone(radiusOf(gx, gy), maxRadius, params.radialRimFraction);
     const { subtype, boundary, coastal } = classifyNode(
       type,
       zone,
@@ -150,7 +153,7 @@ export function generateRadial(params: GenerationParams, rng: RngFn): RadialResu
       fromId: a.id,
       toId: b.id,
       direction,
-      connectionType: connectionTypeFor(a, b, rng),
+      connectionType: connectionTypeFor(a, b, rng, params),
       checkRequired: false,
     });
   }
@@ -180,7 +183,6 @@ export function generateRadial(params: GenerationParams, rng: RngFn): RadialResu
   const nextType = (): NodeType => bag[bagIndex++] ?? pickNodeTypeWeighted(rng, bias);
 
   const STEP = 1.0;
-  const JITTER = 0.3;
 
   // [0, side-1] is exactly the coordinate range the canvas/exporter project
   // into their margins and the validator computes fx/fy fractions against —
@@ -203,8 +205,8 @@ export function generateRadial(params: GenerationParams, rng: RngFn): RadialResu
   function candidatePosition(from: MapNode, dir: CompassDir): { gx: number; gy: number } {
     const v = stepVector(dir);
     return {
-      gx: from.gx + v.dx * STEP + (rng() - 0.5) * JITTER,
-      gy: from.gy + v.dy * STEP + (rng() - 0.5) * JITTER,
+      gx: from.gx + v.dx * STEP + (rng() - 0.5) * params.radialJitter,
+      gy: from.gy + v.dy * STEP + (rng() - 0.5) * params.radialJitter,
     };
   }
 
@@ -213,7 +215,7 @@ export function generateRadial(params: GenerationParams, rng: RngFn): RadialResu
   // way we've been going," which was the old algorithm's actual bug.
   function pickDirection(from: MapNode, candidates: CompassDir[]): CompassDir {
     const inward = radiusOf(from.gx, from.gy) < 0.01 ? null : dirBetween(from.gx, from.gy, center, center);
-    const weights = candidates.map((d) => (inward ? INWARD_WEIGHT_FLOOR + circularDist(d, inward) : 1));
+    const weights = candidates.map((d) => (inward ? params.radialInwardWeight + circularDist(d, inward) : 1));
     const total = weights.reduce((a, b) => a + b, 0);
     let roll = rng() * total;
     for (let i = 0; i < candidates.length; i++) {
@@ -243,7 +245,8 @@ export function generateRadial(params: GenerationParams, rng: RngFn): RadialResu
   }
 
   function connectChanceAt(radius: number): number {
-    return Math.max(0, params.radialCoreInterconnectivity * (1 - radius / maxRadius));
+    const remaining = Math.max(0, 1 - radius / maxRadius);
+    return params.radialCoreInterconnectivity * Math.pow(remaining, params.radialFalloffExponent);
   }
 
   // Returns every node created — the primary (still connected to `from`)
@@ -252,11 +255,11 @@ export function generateRadial(params: GenerationParams, rng: RngFn): RadialResu
   // radialClusterChance (fewer growable points added per successful step),
   // which is backwards from what a "more clustering" knob should do.
   function placeCluster(from: MapNode, gx: number, gy: number): MapNode[] {
-    const clusterSize = rng() < 0.5 ? 2 : 3;
+    const clusterSize = randInt(rng, 2, Math.max(2, Math.round(params.radialClusterMaxSize)));
     const members: MapNode[] = [];
     for (let c = 0; c < clusterSize; c++) {
-      const cx = gx + (rng() - 0.5) * 0.35;
-      const cy = gy + (rng() - 0.5) * 0.35;
+      const cx = gx + (rng() - 0.5) * params.radialClusterSpread;
+      const cy = gy + (rng() - 0.5) * params.radialClusterSpread;
       members.push(makeNode(nextType(), cx, cy));
     }
     const groupId = members[0].id;
@@ -369,8 +372,8 @@ export function generateRadial(params: GenerationParams, rng: RngFn): RadialResu
     node.label = nextLabel(node.subtype);
   }
 
-  const repaired = repairConnectivity(nodes, edges, rng);
-  const finalEdges = ensureMinimumDegree(nodes, repaired, rng);
+  const repaired = repairConnectivity(nodes, edges, rng, params);
+  const finalEdges = ensureMinimumDegree(nodes, repaired, rng, params);
 
   return { nodes, edges: finalEdges, gridCols: side, gridRows: side };
 }

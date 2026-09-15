@@ -19,6 +19,17 @@ const RADIAL_PARAMS: GenerationParams = {
   radialClusterChance: 0.1,
   radialDeadEndPoiBias: 0.6,
   radialConvergenceRadius: 1.5,
+  radialInwardWeight: 0.15,
+  radialFalloffExponent: 1,
+  radialJitter: 0.3,
+  radialRimFraction: 0.85,
+  radialClusterMaxSize: 3,
+  radialClusterSpread: 0.35,
+  maxLargeSettlements: 2,
+  roadFraction: 0.5,
+  coastalChance: 0.05,
+  interiorBoundaryDamping: 0.15,
+  wildernessCheckMultiplier: 0.2,
   nodeTypeBias: { settlement: 0.2, wilderness: 0.55, poi: 0.25 },
   wildernessWaterFraction: 0.15,
   settlementOutpostFraction: 0.25,
@@ -228,6 +239,134 @@ describe("generateMap (radial)", () => {
 
       const unbiased = generateMap({ ...single, radialDeadEndPoiBias: 0 });
       expect(findTip(unbiased).type).not.toBe("poi");
+    });
+  });
+  describe("fine-tuning knobs (M4.9)", () => {
+    function boundaryCount(map: ReturnType<typeof generateMap>) {
+      return map.nodes.filter((n) => n.boundary).length;
+    }
+    function connectionTypeCount(map: ReturnType<typeof generateMap>, type: string) {
+      return map.edges.filter((e) => e.connectionType === type).length;
+    }
+    const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+    it("radialJitter: higher values spread nodes further off their exact step positions", () => {
+      // With zero jitter every hop lands exactly one unit along a compass
+      // direction, so coordinates stay on a tidy lattice; raising it should
+      // measurably increase how far positions drift from whole/half steps.
+      function latticeDeviation(map: ReturnType<typeof generateMap>) {
+        return map.nodes.reduce((sum, n) => {
+          const dx = Math.abs(n.gx - Math.round(n.gx * 2) / 2);
+          const dy = Math.abs(n.gy - Math.round(n.gy * 2) / 2);
+          return sum + dx + dy;
+        }, 0);
+      }
+      let low = 0;
+      let high = 0;
+      for (const seed of SEEDS) {
+        low += latticeDeviation(generateMap({ ...RADIAL_PARAMS, seed, radialJitter: 0 }));
+        high += latticeDeviation(generateMap({ ...RADIAL_PARAMS, seed, radialJitter: 1 }));
+      }
+      expect(high).toBeGreaterThan(low);
+    });
+
+    it("radialRimFraction: a smaller rim puts more of the map in boundary-marked territory", () => {
+      let wideRim = 0; // rim starts late -> few edge-zone nodes
+      let tightRim = 0; // rim starts early -> many edge-zone nodes
+      for (const seed of SEEDS) {
+        wideRim += boundaryCount(generateMap({ ...RADIAL_PARAMS, seed, radialRimFraction: 0.95 }));
+        tightRim += boundaryCount(generateMap({ ...RADIAL_PARAMS, seed, radialRimFraction: 0.5 }));
+      }
+      expect(tightRim).toBeGreaterThan(wideRim);
+    });
+
+    it("radialClusterMaxSize: a bigger cap produces bigger hamlets", () => {
+      // Count nodes sitting very close to at least one other node — the
+      // signature of cluster membership.
+      function huddledCount(map: ReturnType<typeof generateMap>) {
+        return map.nodes.filter((n) =>
+          map.nodes.some((o) => o.id !== n.id && Math.hypot(o.gx - n.gx, o.gy - n.gy) < 0.5)
+        ).length;
+      }
+      let small = 0;
+      let large = 0;
+      for (const seed of SEEDS) {
+        small += huddledCount(generateMap({ ...RADIAL_PARAMS, seed, radialClusterChance: 1, radialClusterMaxSize: 2 }));
+        large += huddledCount(generateMap({ ...RADIAL_PARAMS, seed, radialClusterChance: 1, radialClusterMaxSize: 5 }));
+      }
+      expect(large).toBeGreaterThan(small);
+    });
+
+    it("maxLargeSettlements: caps city-or-metropolis settlements (shared with the grid algorithm)", () => {
+      for (const seed of SEEDS) {
+        for (const cap of [0, 1, 4]) {
+          const map = generateMap({ ...RADIAL_PARAMS, seed, targetNodeCount: 80, maxLargeSettlements: cap });
+          const large = map.nodes.filter((n) => n.subtype === "city" || n.subtype === "metropolis").length;
+          expect(large).toBeLessThanOrEqual(cap);
+        }
+      }
+    });
+
+    it("roadFraction: 0 yields no roads, 1 yields no settlement-touching trails", () => {
+      for (const seed of SEEDS.slice(0, 4)) {
+        const noRoads = generateMap({ ...RADIAL_PARAMS, seed, roadFraction: 0 });
+        expect(connectionTypeCount(noRoads, "road")).toBe(0);
+
+        const allRoads = generateMap({ ...RADIAL_PARAMS, seed, roadFraction: 1 });
+        expect(connectionTypeCount(allRoads, "road")).toBeGreaterThan(0);
+      }
+    });
+
+    it("coastalChance: higher values mark more nodes coastal", () => {
+      let low = 0;
+      let high = 0;
+      for (const seed of SEEDS) {
+        low += generateMap({ ...RADIAL_PARAMS, seed, coastalChance: 0 }).nodes.filter((n) => n.coastal).length;
+        high += generateMap({ ...RADIAL_PARAMS, seed, coastalChance: 0.9 }).nodes.filter((n) => n.coastal).length;
+      }
+      expect(high).toBeGreaterThan(low);
+    });
+
+    it("interiorBoundaryDamping: higher values allow more boundary markers off the rim", () => {
+      let low = 0;
+      let high = 0;
+      for (const seed of SEEDS) {
+        low += boundaryCount(generateMap({ ...RADIAL_PARAMS, seed, interiorBoundaryDamping: 0 }));
+        high += boundaryCount(generateMap({ ...RADIAL_PARAMS, seed, interiorBoundaryDamping: 1 }));
+      }
+      expect(high).toBeGreaterThan(low);
+    });
+
+    it("wildernessCheckMultiplier: higher values make interior routes more check-heavy", () => {
+      let low = 0;
+      let high = 0;
+      for (const seed of SEEDS) {
+        low += generateMap({ ...RADIAL_PARAMS, seed, checkRequiredFraction: 1, wildernessCheckMultiplier: 0 }).edges.filter((e) => e.checkRequired).length;
+        high += generateMap({ ...RADIAL_PARAMS, seed, checkRequiredFraction: 1, wildernessCheckMultiplier: 1 }).edges.filter((e) => e.checkRequired).length;
+      }
+      expect(high).toBeGreaterThan(low);
+    });
+
+    it("every fine-tuning knob stays valid at both extremes", () => {
+      const extremes: Partial<GenerationParams>[] = [
+        { radialInwardWeight: 0 }, { radialInwardWeight: 1 },
+        { radialFalloffExponent: 0.1 }, { radialFalloffExponent: 5 },
+        { radialJitter: 0 }, { radialJitter: 1 },
+        { radialRimFraction: 0.5 }, { radialRimFraction: 0.95 },
+        { radialClusterChance: 1, radialClusterMaxSize: 5 },
+        { radialClusterSpread: 0 }, { radialClusterSpread: 1 },
+        { maxLargeSettlements: 0 }, { maxLargeSettlements: 6 },
+        { roadFraction: 0 }, { roadFraction: 1 },
+        { coastalChance: 0 }, { coastalChance: 1 },
+        { interiorBoundaryDamping: 0 }, { interiorBoundaryDamping: 1 },
+        { wildernessCheckMultiplier: 0 }, { wildernessCheckMultiplier: 1 },
+      ];
+      for (const override of extremes) {
+        for (const seed of [1, 7]) {
+          const map = generateMap({ ...RADIAL_PARAMS, seed, ...override });
+          expect(validateMap(map)).toEqual([]);
+        }
+      }
     });
   });
 });
