@@ -6,28 +6,30 @@ import { generateMap } from "../core/generator";
 import { generateName, regionName } from "../nameforge";
 import { buildPrototypeMap } from "../core/prototypeMap";
 import { REGION_PRESET_IDS, REGION_PRESETS, type RegionPresetId } from "../core/regionPresets";
+import { makeRng, type RngFn } from "../core/rng";
 import { decodeParams, encodeParams } from "../core/shareCode";
 import { isOutpostBranch, isWaterBranch } from "../core/taxonomy";
 import { validateMap, type Violation } from "../core/validator";
 import type { CompassDir, GenerationParams, MapEdge, MapNode, WorldMap } from "../types/map";
 
 // Re-exported so the UI layer (components/) can infer a node's Tier 1.5 fork,
-// compute a hull for the terrain/faction overlay layers, or list region
-// presets, without importing core/ directly — components may only import
-// store/, types/, and React (spec Section 2 / CLAUDE.md's architecture
-// contract).
+// compute a hull for the terrain/faction overlay layers, list region
+// presets, or seed a deterministic RngFn (e.g. the /nameGenerator page),
+// without importing core/ directly — components may only import store/,
+// types/, and React (spec Section 2 / CLAUDE.md's architecture contract).
 export {
   centroid,
   convexHull,
   isOutpostBranch,
   isWaterBranch,
+  makeRng,
   padHull,
   recommendedGridDimensions,
   recommendedRadialGridDimensions,
   REGION_PRESET_IDS,
   REGION_PRESETS,
 };
-export type { RegionPresetId };
+export type { RegionPresetId, RngFn };
 
 const MAX_HISTORY = 30;
 const STORAGE_KEY = "overworld-current";

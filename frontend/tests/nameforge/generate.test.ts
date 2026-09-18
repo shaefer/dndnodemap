@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateName, regenerate, rerollSlot } from "../../src/nameforge/generate";
+import { generateFromPattern, generateName, regenerate, rerollSlot } from "../../src/nameforge/generate";
 import { poiFanciful } from "../../src/nameforge/themes/poi";
 import { regionName } from "../../src/nameforge/themes/region";
 import { settlementMedieval } from "../../src/nameforge/themes/settlement";
@@ -65,6 +65,30 @@ describe("generateName", () => {
   it("defaults to Math.random when no rng is supplied", () => {
     const name = generateName(settlementMedieval);
     expect(name.text.length).toBeGreaterThan(0);
+  });
+});
+
+describe("generateFromPattern", () => {
+  it("always uses the requested pattern, never a random one", () => {
+    for (const theme of ALL_THEMES) {
+      for (const pattern of theme.patterns) {
+        for (let seed = 0; seed < 5; seed++) {
+          const name = generateFromPattern(theme, pattern.id, fixedRng(seed));
+          expect(name.patternId).toBe(pattern.id);
+          expect(name.parts.length).toBe(pattern.slots.length);
+        }
+      }
+    }
+  });
+
+  it("is deterministic for the same rng sequence", () => {
+    const a = generateFromPattern(settlementMedieval, "root-suffix", fixedRng(11));
+    const b = generateFromPattern(settlementMedieval, "root-suffix", fixedRng(11));
+    expect(a).toEqual(b);
+  });
+
+  it("throws for an unknown pattern id", () => {
+    expect(() => generateFromPattern(settlementMedieval, "not-a-real-pattern", fixedRng(1))).toThrow();
   });
 });
 

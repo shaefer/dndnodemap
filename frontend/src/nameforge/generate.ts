@@ -40,6 +40,16 @@ export function generateName(theme: Theme, rng: Rng = Math.random): GeneratedNam
   return renderPattern(theme.id, pick(theme.patterns, rng), rng);
 }
 
+// Generates from a specific, caller-chosen pattern rather than a random one —
+// the mechanism a caller needs to deliberately exercise/compare one exact
+// pattern (e.g. a name-generator test/calibration tool) instead of always
+// getting whatever generateName happens to roll.
+export function generateFromPattern(theme: Theme, patternId: string, rng: Rng = Math.random): GeneratedName {
+  const pattern = findPattern(theme, patternId);
+  if (!pattern) throw new Error(`Theme "${theme.id}" has no pattern "${patternId}"`);
+  return renderPattern(theme.id, pattern, rng);
+}
+
 // Keeps the same pattern (same "shape") as an existing generated name, but
 // redraws every slot — same style, new words.
 export function regenerate(theme: Theme, generated: GeneratedName, rng: Rng = Math.random): GeneratedName {

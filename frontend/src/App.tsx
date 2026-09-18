@@ -1,14 +1,13 @@
-import { MapCanvas } from "./components/canvas/MapCanvas";
-import { GeneratePanel } from "./components/panels/GeneratePanel";
+import { Route, Routes } from "react-router-dom";
+import { MapApp } from "./pages/MapApp";
+import { NameGeneratorPage } from "./pages/NameGeneratorPage";
 
 function App() {
   return (
-    <div style={{ width: "100vw", height: "100vh", display: "flex" }}>
-      <GeneratePanel />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <MapCanvas />
-      </div>
-    </div>
+    <Routes>
+      <Route path="/" element={<MapApp />} />
+      <Route path="/nameGenerator" element={<NameGeneratorPage />} />
+    </Routes>
   );
 }
 
