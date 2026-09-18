@@ -1,0 +1,40 @@
+// Core data model for nameforge. Zero dependencies, zero imports from
+// anywhere outside this folder — see README.md.
+
+export type Rng = () => number;
+
+// A chain of syllable pools for invented-language-style names (e.g. elvish):
+// one "start" syllable, zero or more "middle" syllables, one "end" syllable,
+// concatenated with no separator.
+export interface SyllableChain {
+  start: readonly string[];
+  middle: readonly string[];
+  end: readonly string[];
+  minMiddle?: number; // default 0
+  maxMiddle?: number; // default 1
+}
+
+export type Slot =
+  | { type: "bank"; bank: readonly string[] }
+  | { type: "literal"; text: string }
+  | { type: "syllableChain"; chain: SyllableChain };
+
+export interface Pattern {
+  id: string;
+  slots: Slot[];
+}
+
+export interface Theme {
+  id: string;
+  patterns: readonly Pattern[];
+}
+
+export interface GeneratedName {
+  themeId: string;
+  patternId: string;
+  // One rendered string per slot, in pattern order. Kept as an array (not
+  // just the joined text) so a caller can reroll a single slot later without
+  // needing to re-parse the assembled name.
+  parts: string[];
+  text: string;
+}

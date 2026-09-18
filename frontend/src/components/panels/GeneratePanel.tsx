@@ -73,6 +73,8 @@ export function GeneratePanel() {
   const applyRegionPreset = useMapStore((s) => s.applyRegionPreset);
   const randomizeRegionPreset = useMapStore((s) => s.randomizeRegionPreset);
   const applyRecommendedGridSize = useMapStore((s) => s.applyRecommendedGridSize);
+  const setMapName = useMapStore((s) => s.setMapName);
+  const rerollMapName = useMapStore((s) => s.rerollMapName);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -144,6 +146,21 @@ export function GeneratePanel() {
   return (
     <div style={{ padding: 16, width: 300, boxSizing: "border-box", overflowY: "auto", height: "100%", borderRight: "1px solid #eee" }}>
       <h2 style={{ fontSize: 14, margin: "0 0 12px" }}>Generate</h2>
+
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: "#888", textTransform: "uppercase", marginBottom: 6 }}>Map name</div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <input
+            type="text"
+            value={map.name}
+            onChange={(e) => setMapName(e.target.value)}
+            style={{ flex: 1, fontSize: 12 }}
+          />
+          <button type="button" onClick={rerollMapName} title="Generate a new random name" style={{ fontSize: 12 }}>
+            🎲
+          </button>
+        </div>
+      </div>
 
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 11, color: "#888", textTransform: "uppercase", marginBottom: 6 }}>Generation style</div>

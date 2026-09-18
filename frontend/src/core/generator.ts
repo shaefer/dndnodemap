@@ -24,6 +24,7 @@ import {
   type Zone,
 } from "./generationShared";
 import { relaxLayout } from "./layoutRelax";
+import { applyNodeNames, generateMapName } from "./naming";
 import { generateRadial } from "./radialGenerator";
 import { makeRng, randInt, type RngFn } from "./rng";
 import { BIOMES } from "./taxonomy";
@@ -87,7 +88,12 @@ import { BIOMES } from "./taxonomy";
 // so a given seed renders differently than it did at 2.3.0. Controlled by
 // layoutRelaxStrength/layoutNodeSpacing/layoutDirectionWeight; strength 0
 // restores exactly the pre-2.4.0 placement.
-export const ALGORITHM_VERSION = "2.4.0";
+// 2.5.0: new post-generation naming pass (core/naming.ts, backed by the
+// standalone src/nameforge library) replaces placeholder "Village-1"-style
+// node labels and the hardcoded "Unnamed Region" map name with real
+// generated names. A genuinely new capability that consumes rng() draws for
+// every node plus one for the map name, so every seed's output changes.
+export const ALGORITHM_VERSION = "2.5.0";
 
 // --- Step 1: node placement ("grid" algorithm) -------------------------------
 
@@ -465,6 +471,12 @@ export function generateMap(params: GenerationParams): WorldMap {
   // proximity and must see final positions. Consumes no rng() draws.
   nodes = relaxLayout(nodes, built, effectiveParams, effectiveParams.gridCols, effectiveParams.gridRows);
 
+  // Naming pass (M4.12): a standalone post-generation transform, same shape
+  // as relaxLayout above — knows nothing about geometry/edges, just replaces
+  // each node's placeholder label with a real generated name based on its
+  // already-resolved type/subtype/biome.
+  nodes = applyNodeNames(nodes, rng);
+
   const checked = markCheckRequired(nodes, built, effectiveParams, rng);
   const edges = assignCheckTypes(checked, rng);
   const terrainZones = effectiveParams.generateTerrainZones ? generateTerrainZonesStep(nodes) : undefined;
@@ -472,7 +484,7 @@ export function generateMap(params: GenerationParams): WorldMap {
   const now = new Date().toISOString();
   return {
     id: crypto.randomUUID(),
-    name: "Unnamed Region",
+    name: generateMapName(rng),
     nodes,
     edges,
     extensions: terrainZones && terrainZones.length > 0 ? { terrainZones } : {},

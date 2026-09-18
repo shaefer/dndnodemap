@@ -104,7 +104,7 @@ describe("generateMap", () => {
 
   it("sets the current algorithm version", () => {
     const map = generateMap(DEFAULT_PARAMS);
-    expect(map.algorithmVersion).toBe("2.4.0");
+    expect(map.algorithmVersion).toBe("2.5.0");
   });
 
   it("never assigns seasonal — that stays a manual, DM-authored call (Section 3c)", () => {

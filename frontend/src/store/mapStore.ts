@@ -3,6 +3,7 @@ import { oppositeDir } from "../core/compass";
 import { centroid, convexHull, padHull, recommendedGridDimensions, recommendedRadialGridDimensions } from "../core/geometry";
 import { edgesForNode } from "../core/graph";
 import { generateMap } from "../core/generator";
+import { generateName, regionName } from "../nameforge";
 import { buildPrototypeMap } from "../core/prototypeMap";
 import { REGION_PRESET_IDS, REGION_PRESETS, type RegionPresetId } from "../core/regionPresets";
 import { decodeParams, encodeParams } from "../core/shareCode";
@@ -281,6 +282,16 @@ interface MapState {
   // as biomeMix sliders after a region preset.
   applyRecommendedGridSize: () => void;
 
+  // Map naming (M4.12) is metadata, not a graph edit — like
+  // updateDraftParam/randomizeSeed, it doesn't push undo/redo history, but it
+  // does persist (unlike layer-visibility toggles) since it's real WorldMap
+  // data.
+  setMapName: (name: string) => void;
+  // A live UI convenience (fresh Math.random-backed name), same category as
+  // randomizeSeed/randomizeRegionPreset already using Math.random directly
+  // rather than the deterministic seeded core RNG.
+  rerollMapName: () => void;
+
   updateNode: (id: string, patch: Partial<MapNode>) => void;
   deleteNode: (id: string) => void;
   addNode: (node: Omit<MapNode, "id">) => void;
@@ -380,6 +391,20 @@ export const useMapStore = create<MapState>((set, get) => ({
     set((state) => {
       const { gridCols, gridRows } = recommendedGridDimensions(state.draftParams.targetNodeCount);
       return { draftParams: { ...state.draftParams, gridCols, gridRows } };
+    }),
+
+  setMapName: (name) =>
+    set((state) => {
+      const map = touch({ ...state.map, name });
+      persistMap(map);
+      return { map };
+    }),
+
+  rerollMapName: () =>
+    set((state) => {
+      const map = touch({ ...state.map, name: generateName(regionName).text });
+      persistMap(map);
+      return { map };
     }),
 
   updateNode: (id, patch) =>
