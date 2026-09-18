@@ -59,11 +59,17 @@ export const waterFeature: Theme = {
     {
       id: "possessive",
       slots: [
-        { type: "bank", bank: WATER_POSSESSIVE_ROOTS },
+        { type: "bank", bank: WATER_POSSESSIVE_ROOTS, name: "possessive roots" },
         { type: "literal", text: "'s " },
-        { type: "bank", bank: WATER_SUFFIXES },
+        { type: "bank", bank: WATER_SUFFIXES, name: "suffixes" },
       ],
     },
-    { id: "compound", slots: [{ type: "bank", bank: WATER_PLAIN_ROOTS }, { type: "bank", bank: WATER_SUFFIXES_LOWER }] },
+    {
+      id: "compound",
+      slots: [
+        { type: "bank", bank: WATER_PLAIN_ROOTS, name: "roots" },
+        { type: "bank", bank: WATER_SUFFIXES_LOWER, name: "suffixes" },
+      ],
+    },
   ],
 };

@@ -17,6 +17,12 @@ const SUFFIXES = [
 export const settlementMedieval: Theme = {
   id: "settlementMedieval",
   patterns: [
-    { id: "root-suffix", slots: [{ type: "bank", bank: ROOTS }, { type: "bank", bank: SUFFIXES }] },
+    {
+      id: "root-suffix",
+      slots: [
+        { type: "bank", bank: ROOTS, name: "roots" },
+        { type: "bank", bank: SUFFIXES, name: "suffixes" },
+      ],
+    },
   ],
 };

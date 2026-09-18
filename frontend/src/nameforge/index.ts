@@ -15,7 +15,7 @@ import type { Theme } from "./types";
 
 export type { GeneratedName, Pattern, Rng, Slot, SyllableChain, Theme } from "./types";
 export { generateFromPattern, generateName, regenerate, rerollSlot } from "./generate";
-export { describePattern, describeSlot } from "./inspect";
+export { describePattern, describeSlot, listWordLists, type NamedWordList } from "./inspect";
 export { rootSuffixPatterns, rootSuffixTheme } from "./themes/_shared";
 export { poiFanciful } from "./themes/poi";
 export { regionName } from "./themes/region";

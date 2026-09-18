@@ -15,7 +15,10 @@ export interface SyllableChain {
 }
 
 export type Slot =
-  | { type: "bank"; bank: readonly string[] }
+  // name is optional, purely descriptive (e.g. "roots", "suffixes") — used by
+  // inspect.ts's listWordLists to label a bank for review tooling; generation
+  // itself never reads it.
+  | { type: "bank"; bank: readonly string[]; name?: string }
   | { type: "literal"; text: string }
   | { type: "syllableChain"; chain: SyllableChain };
 

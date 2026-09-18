@@ -15,15 +15,29 @@ export const regionName: Theme = {
   patterns: [
     {
       id: "the-root-reach",
-      slots: [{ type: "literal", text: "The " }, { type: "bank", bank: ROOTS }, { type: "literal", text: " " }, { type: "bank", bank: REACH_NOUNS }],
+      slots: [
+        { type: "literal", text: "The " },
+        { type: "bank", bank: ROOTS, name: "roots" },
+        { type: "literal", text: " " },
+        { type: "bank", bank: REACH_NOUNS, name: "reach nouns" },
+      ],
     },
     {
       id: "root-vale",
-      slots: [{ type: "bank", bank: ROOTS }, { type: "literal", text: " " }, { type: "bank", bank: VALE_NOUNS }],
+      slots: [
+        { type: "bank", bank: ROOTS, name: "roots" },
+        { type: "literal", text: " " },
+        { type: "bank", bank: VALE_NOUNS, name: "vale nouns" },
+      ],
     },
     {
       id: "kingdoms-of-the",
-      slots: [{ type: "literal", text: "Kingdoms of the " }, { type: "bank", bank: ROOTS }, { type: "literal", text: " " }, { type: "bank", bank: VALE_NOUNS }],
+      slots: [
+        { type: "literal", text: "Kingdoms of the " },
+        { type: "bank", bank: ROOTS, name: "roots" },
+        { type: "literal", text: " " },
+        { type: "bank", bank: VALE_NOUNS, name: "vale nouns" },
+      ],
     },
   ],
 };

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ALL_THEMES, describePattern, rerollSlot } from "../nameforge";
+import { ALL_THEMES, describePattern, listWordLists, rerollSlot } from "../nameforge";
 import { generateBatch, RANDOM_PATTERN, randomSeed, type NameGeneratorResult } from "./nameGeneratorBatch";
 
 const inputStyle: React.CSSProperties = { fontSize: 12, padding: "4px 6px" };
@@ -134,6 +134,22 @@ export function NameGeneratorPage() {
             </li>
           ))}
         </ul>
+      </details>
+
+      <details open style={{ marginBottom: 20, fontSize: 12 }}>
+        <summary style={{ cursor: "pointer", color: "#888", textTransform: "uppercase", fontSize: 11 }}>
+          Word lists — "{themeId}"
+        </summary>
+        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 12 }}>
+          {listWordLists(theme).map((list) => (
+            <div key={list.name}>
+              <div style={{ fontWeight: 600, marginBottom: 2 }}>
+                {list.name} <span style={{ fontWeight: 400, color: "#888" }}>({list.words.length} words)</span>
+              </div>
+              <div style={{ color: "#444", lineHeight: 1.6 }}>{list.words.join(", ")}</div>
+            </div>
+          ))}
+        </div>
       </details>
 
       {results.length > 0 && (

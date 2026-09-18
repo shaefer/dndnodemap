@@ -9,18 +9,28 @@ import type { Pattern, Theme } from "../types";
 export function rootSuffixPatterns(roots: readonly string[], suffixesCapitalized: readonly string[]): Pattern[] {
   const suffixesLower = suffixesCapitalized.map((s) => s.toLowerCase());
   return [
-    { id: "compound", slots: [{ type: "bank", bank: roots }, { type: "bank", bank: suffixesLower }] },
+    {
+      id: "compound",
+      slots: [
+        { type: "bank", bank: roots, name: "roots" },
+        { type: "bank", bank: suffixesLower, name: "suffixes" },
+      ],
+    },
     {
       id: "two-word",
-      slots: [{ type: "bank", bank: roots }, { type: "literal", text: " " }, { type: "bank", bank: suffixesCapitalized }],
+      slots: [
+        { type: "bank", bank: roots, name: "roots" },
+        { type: "literal", text: " " },
+        { type: "bank", bank: suffixesCapitalized, name: "suffixes" },
+      ],
     },
     {
       id: "the-two-word",
       slots: [
         { type: "literal", text: "The " },
-        { type: "bank", bank: roots },
+        { type: "bank", bank: roots, name: "roots" },
         { type: "literal", text: " " },
-        { type: "bank", bank: suffixesCapitalized },
+        { type: "bank", bank: suffixesCapitalized, name: "suffixes" },
       ],
     },
   ];

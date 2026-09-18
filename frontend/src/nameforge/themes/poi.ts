@@ -18,18 +18,28 @@ const NOUNS_LOWER = NOUNS.map((n) => n.toLowerCase());
 export const poiFanciful: Theme = {
   id: "poiFanciful",
   patterns: [
-    { id: "compound", slots: [{ type: "bank", bank: ADJECTIVES }, { type: "bank", bank: NOUNS_LOWER }] },
+    {
+      id: "compound",
+      slots: [
+        { type: "bank", bank: ADJECTIVES, name: "adjectives" },
+        { type: "bank", bank: NOUNS_LOWER, name: "nouns" },
+      ],
+    },
     {
       id: "two-word",
-      slots: [{ type: "bank", bank: ADJECTIVES }, { type: "literal", text: " " }, { type: "bank", bank: NOUNS }],
+      slots: [
+        { type: "bank", bank: ADJECTIVES, name: "adjectives" },
+        { type: "literal", text: " " },
+        { type: "bank", bank: NOUNS, name: "nouns" },
+      ],
     },
     {
       id: "the-two-word",
       slots: [
         { type: "literal", text: "The " },
-        { type: "bank", bank: ADJECTIVES },
+        { type: "bank", bank: ADJECTIVES, name: "adjectives" },
         { type: "literal", text: " " },
-        { type: "bank", bank: NOUNS },
+        { type: "bank", bank: NOUNS, name: "nouns" },
       ],
     },
   ],
