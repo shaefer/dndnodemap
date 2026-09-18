@@ -1,7 +1,15 @@
-import type { GeneratedName, Pattern, Rng, Slot, SyllableChain, Theme } from "./types";
+import type { Bank, GeneratedName, Pattern, Rng, Slot, SyllableChain, Theme } from "./types";
 
 function pick<T>(arr: readonly T[], rng: Rng): T {
   return arr[Math.floor(rng() * arr.length)];
+}
+
+// A flat bank picks one word uniformly. A categorized bank picks a category
+// uniformly first, then a word uniformly within it — two draws instead of
+// one, so a large category never dominates a small one.
+function pickFromBank(bank: Bank, rng: Rng): string {
+  if ("categories" in bank) return pick(pick(bank.categories, rng).words, rng);
+  return pick(bank, rng);
 }
 
 function renderSyllableChain(chain: SyllableChain, rng: Rng): string {
@@ -19,7 +27,7 @@ function renderSlot(slot: Slot, rng: Rng): string {
     case "literal":
       return slot.text;
     case "bank":
-      return pick(slot.bank, rng);
+      return pickFromBank(slot.bank, rng);
     case "syllableChain":
       return renderSyllableChain(slot.chain, rng);
   }

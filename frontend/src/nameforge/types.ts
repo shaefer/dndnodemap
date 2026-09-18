@@ -14,11 +14,24 @@ export interface SyllableChain {
   maxMiddle?: number; // default 1
 }
 
+export interface WordCategory {
+  name: string;
+  words: readonly string[];
+}
+
+// A bank is either a flat list (every word equally likely) or a set of named
+// categories. For a categorized bank, generation picks a category *uniformly
+// first*, then a word uniformly within it — so category count determines a
+// category's influence on output, not category size. Without this, a
+// 45-word category would swamp an 8-word category even though both are
+// meant to be equally plausible flavors.
+export type Bank = readonly string[] | { categories: readonly WordCategory[] };
+
 export type Slot =
   // name is optional, purely descriptive (e.g. "roots", "suffixes") — used by
   // inspect.ts's listWordLists to label a bank for review tooling; generation
   // itself never reads it.
-  | { type: "bank"; bank: readonly string[]; name?: string }
+  | { type: "bank"; bank: Bank; name?: string }
   | { type: "literal"; text: string }
   | { type: "syllableChain"; chain: SyllableChain };
 

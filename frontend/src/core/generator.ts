@@ -93,7 +93,18 @@ import { BIOMES } from "./taxonomy";
 // node labels and the hardcoded "Unnamed Region" map name with real
 // generated names. A genuinely new capability that consumes rng() draws for
 // every node plus one for the map name, so every seed's output changes.
-export const ALGORITHM_VERSION = "2.5.0";
+// 2.6.0: nameforge's roots/suffixes/adjectives/nouns banks became
+// categorized (colors, gems, materials, flora, fauna, etc. as named
+// sub-lists) across every theme naming.ts uses, with category-weighted
+// picking (pick a category uniformly, then a word within it) so a large
+// category no longer dominates a small one — a categorized bank consumes two
+// rng() draws per pick instead of one. regionName also gained two additional
+// pattern shapes (a compact single-word compound and a nested genitive "The
+// [noun] of [descriptor] [compound]") alongside its existing phrase pattern,
+// for real cadence variety in map names, not just word variance. Both
+// changes shift the naming pass's rng() sequence for every node and the map
+// name, on every seed.
+export const ALGORITHM_VERSION = "2.6.0";
 
 // --- Step 1: node placement ("grid" algorithm) -------------------------------
 

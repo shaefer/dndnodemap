@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { makeRng } from "../../src/core/rng";
 import { generateFromPattern, generateName, regenerate, rerollSlot } from "../../src/nameforge/generate";
+import { listWordLists } from "../../src/nameforge/inspect";
 import { poiFanciful } from "../../src/nameforge/themes/poi";
 import { regionName } from "../../src/nameforge/themes/region";
 import { settlementMedieval } from "../../src/nameforge/themes/settlement";
@@ -68,6 +70,56 @@ describe("generateName", () => {
   });
 });
 
+describe("category-weighted bank picking (M4.14)", () => {
+  it("gives every category roughly equal representation, independent of its own word count", () => {
+    // settlementMedieval's "roots" bank has categories ranging from 2 words
+    // ("fauna") to 7 words ("flora"). Without category-weighting, "flora"
+    // would appear ~3.5x as often as "fauna" just from its size; with it,
+    // both should land close to 1/7 of draws (7 categories total).
+    const categories = listWordLists(settlementMedieval).filter((l) => l.parent === "roots");
+    expect(categories.length).toBeGreaterThan(1);
+
+    const counts = new Map<string, number>(categories.map((c) => [c.name, 0]));
+    const rng = makeRng(1);
+    const N = 5000;
+    for (let i = 0; i < N; i++) {
+      const root = generateFromPattern(settlementMedieval, "root-suffix", rng).parts[0];
+      const category = categories.find((c) => c.words.includes(root));
+      expect(category).toBeDefined();
+      counts.set(category!.name, counts.get(category!.name)! + 1);
+    }
+
+    const expectedShare = 1 / categories.length;
+    for (const [name, count] of counts) {
+      const share = count / N;
+      expect(share, `category "${name}" share ${share} vs expected ~${expectedShare}`).toBeGreaterThan(expectedShare * 0.6);
+      expect(share, `category "${name}" share ${share} vs expected ~${expectedShare}`).toBeLessThan(expectedShare * 1.4);
+    }
+  });
+
+  it("a 2-word category is not swamped by a 7-word category in the same bank", () => {
+    const categories = listWordLists(settlementMedieval).filter((l) => l.parent === "roots");
+    const fauna = categories.find((c) => c.name === "fauna")!;
+    const flora = categories.find((c) => c.name === "flora")!;
+    expect(fauna.words.length).toBe(2);
+    expect(flora.words.length).toBe(7);
+
+    let faunaCount = 0;
+    let floraCount = 0;
+    const rng = makeRng(2);
+    const N = 5000;
+    for (let i = 0; i < N; i++) {
+      const root = generateFromPattern(settlementMedieval, "root-suffix", rng).parts[0];
+      if (fauna.words.includes(root)) faunaCount++;
+      if (flora.words.includes(root)) floraCount++;
+    }
+    // Proportional-to-size would give flora ~3.5x fauna's count; category
+    // weighting should keep them within a much smaller ratio of each other.
+    const ratio = floraCount / faunaCount;
+    expect(ratio).toBeLessThan(2);
+  });
+});
+
 describe("generateFromPattern", () => {
   it("always uses the requested pattern, never a random one", () => {
     for (const theme of ALL_THEMES) {
@@ -132,5 +184,48 @@ describe("syllableChain slots (elvishSyllable)", () => {
       expect(start.some((s) => name.text.startsWith(s))).toBe(true);
       expect(end.some((e) => name.text.endsWith(e))).toBe(true);
     }
+  });
+});
+
+describe("regionName's 3 distinct patterns (M4.14)", () => {
+  it("has exactly 3 patterns", () => {
+    expect(regionName.patterns.map((p) => p.id).sort()).toEqual(["compound", "nested-of", "the-root-noun"]);
+  });
+
+  it("compound produces a single glued word with no spaces", () => {
+    for (let seed = 0; seed < 20; seed++) {
+      const name = generateFromPattern(regionName, "compound", makeRng(seed));
+      expect(name.parts.length).toBe(2);
+      expect(name.text).not.toContain(" ");
+    }
+  });
+
+  it('the-root-noun produces "The [root] [noun]" with no nested "of"', () => {
+    for (let seed = 0; seed < 20; seed++) {
+      const name = generateFromPattern(regionName, "the-root-noun", makeRng(seed));
+      expect(name.text.startsWith("The ")).toBe(true);
+      expect(name.text).not.toContain(" of ");
+      expect(name.text.split(" ").length).toBe(3); // "The", root, noun
+    }
+  });
+
+  it('nested-of produces "The [noun] of [descriptor] [compound]" with the compound half unspaced', () => {
+    for (let seed = 0; seed < 20; seed++) {
+      const name = generateFromPattern(regionName, "nested-of", makeRng(seed));
+      expect(name.text.startsWith("The ")).toBe(true);
+      expect(name.text).toContain(" of ");
+      // "The <noun> of <descriptor> <compound>" — exactly one more space than
+      // "of" alone would require, since the trailing compound is one glued word.
+      const afterOf = name.text.split(" of ")[1];
+      expect(afterOf.split(" ").length).toBe(2);
+    }
+  });
+
+  it("the 3 patterns produce visibly different cadences for the same seed", () => {
+    const seed = 7;
+    const compound = generateFromPattern(regionName, "compound", makeRng(seed)).text;
+    const phrase = generateFromPattern(regionName, "the-root-noun", makeRng(seed)).text;
+    const nested = generateFromPattern(regionName, "nested-of", makeRng(seed)).text;
+    expect(new Set([compound, phrase, nested]).size).toBe(3);
   });
 });

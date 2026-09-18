@@ -1,40 +1,93 @@
-import type { Theme } from "../types";
+import type { Bank, Theme } from "../types";
 import { rootSuffixTheme } from "./_shared";
 
-// One root+suffix theme per Biome value, each with its own thematic word set.
-// Roots and suffixes are both plain nouns/adjectives here — rootSuffixTheme
-// handles deriving the lowercase compound form from the capitalized one.
+// One root+suffix theme per Biome value, each with its own thematic word
+// set. Both banks are categorized (M4.14) — see themes/region.ts for the
+// full rationale on category-weighted picking. rootSuffixTheme handles
+// deriving the lowercase compound form from the capitalized suffix bank.
 
-const FOREST_ROOTS = [
-  "Green", "Thorn", "Oak", "Elm", "Shadow", "Silver", "Moss", "Fern", "Birch", "Wild",
-  "Ash", "Willow", "Bramble", "Amber", "Grey",
-] as const;
-const FOREST_SUFFIXES = ["Wood", "Vale", "Glen", "Wilds", "Glade", "Hollow", "Thicket", "Grove", "Heath"] as const;
+const FOREST_ROOTS: Bank = {
+  categories: [
+    { name: "flora", words: ["Oak", "Elm", "Birch", "Willow", "Bramble", "Ash", "Fern", "Moss"] },
+    { name: "colors", words: ["Green", "Silver", "Amber", "Grey"] },
+    { name: "descriptors", words: ["Thorn", "Shadow", "Wild"] },
+  ],
+};
+const FOREST_SUFFIXES: Bank = {
+  categories: [
+    { name: "woodland", words: ["Wood", "Glen", "Grove", "Thicket", "Glade"] },
+    { name: "open land", words: ["Vale", "Wilds", "Hollow", "Heath"] },
+  ],
+};
 
-const SWAMP_ROOTS = [
-  "Bog", "Mire", "Fen", "Reed", "Murk", "Rot", "Still", "Grey", "Black", "Rush",
-] as const;
-const SWAMP_SUFFIXES = ["Marsh", "Fen", "Mire", "Flats", "Bog", "Hollow", "Mere", "Reach"] as const;
+const SWAMP_ROOTS: Bank = {
+  categories: [
+    { name: "terrain", words: ["Bog", "Mire", "Fen", "Murk"] },
+    { name: "flora", words: ["Reed", "Rush"] },
+    { name: "descriptors", words: ["Rot", "Still", "Grey", "Black"] },
+  ],
+};
+const SWAMP_SUFFIXES: Bank = {
+  categories: [
+    { name: "wetland", words: ["Marsh", "Fen", "Mire", "Bog"] },
+    { name: "water and land", words: ["Flats", "Hollow", "Mere", "Reach"] },
+  ],
+};
 
-const DESERT_ROOTS = [
-  "Sun", "Dust", "Sand", "Scorch", "Dune", "Amber", "Bone", "Glass", "Ember", "Copper",
-] as const;
-const DESERT_SUFFIXES = ["Dunes", "Wastes", "Flats", "Expanse", "Reach", "Sands", "Basin"] as const;
+const DESERT_ROOTS: Bank = {
+  categories: [
+    { name: "terrain", words: ["Sand", "Dune", "Dust"] },
+    { name: "elemental", words: ["Sun", "Scorch", "Ember"] },
+    { name: "materials", words: ["Amber", "Bone", "Glass", "Copper"] },
+  ],
+};
+const DESERT_SUFFIXES: Bank = {
+  categories: [
+    { name: "expanse", words: ["Wastes", "Expanse", "Reach"] },
+    { name: "landform", words: ["Dunes", "Flats", "Sands", "Basin"] },
+  ],
+};
 
-const TUNDRA_ROOTS = [
-  "Frost", "Rime", "Snow", "Wind", "Pale", "Grey", "Ice", "Stone", "White", "North",
-] as const;
-const TUNDRA_SUFFIXES = ["Moor", "Waste", "Reach", "Expanse", "Hollow", "Ridge", "Fell"] as const;
+const TUNDRA_ROOTS: Bank = {
+  categories: [
+    { name: "ice and cold", words: ["Frost", "Rime", "Snow", "Ice"] },
+    { name: "colors", words: ["Pale", "Grey", "White"] },
+    { name: "descriptors", words: ["Wind", "Stone", "North"] },
+  ],
+};
+const TUNDRA_SUFFIXES: Bank = {
+  categories: [
+    { name: "landform", words: ["Moor", "Ridge", "Fell", "Hollow"] },
+    { name: "expanse", words: ["Waste", "Reach", "Expanse"] },
+  ],
+};
 
-const JUNGLE_ROOTS = [
-  "Vine", "Canopy", "Emerald", "Verdant", "Fern", "Wild", "Bright", "Deep", "Green", "Moss",
-] as const;
-const JUNGLE_SUFFIXES = ["Thicket", "Tangle", "Wilds", "Grove", "Reach", "Canopy", "Hollow"] as const;
+const JUNGLE_ROOTS: Bank = {
+  categories: [
+    { name: "flora", words: ["Vine", "Canopy", "Fern", "Moss"] },
+    { name: "colors", words: ["Emerald", "Verdant", "Green", "Bright"] },
+    { name: "descriptors", words: ["Wild", "Deep"] },
+  ],
+};
+const JUNGLE_SUFFIXES: Bank = {
+  categories: [
+    { name: "dense growth", words: ["Thicket", "Tangle", "Canopy", "Grove"] },
+    { name: "open and other", words: ["Wilds", "Reach", "Hollow"] },
+  ],
+};
 
-const PLAINS_ROOTS = [
-  "Wide", "Long", "Open", "Golden", "Sunlit", "High", "Far", "Amber", "Windswept", "Fair",
-] as const;
-const PLAINS_SUFFIXES = ["Plain", "Reach", "Expanse", "Fields", "Run", "Way", "Veldt"] as const;
+const PLAINS_ROOTS: Bank = {
+  categories: [
+    { name: "descriptors", words: ["Wide", "Long", "Open", "High", "Far", "Windswept"] },
+    { name: "colors and light", words: ["Golden", "Sunlit", "Amber", "Fair"] },
+  ],
+};
+const PLAINS_SUFFIXES: Bank = {
+  categories: [
+    { name: "open land", words: ["Plain", "Fields", "Veldt"] },
+    { name: "expanse", words: ["Reach", "Expanse", "Run", "Way"] },
+  ],
+};
 
 export const wildernessForest: Theme = rootSuffixTheme("wildernessForest", FOREST_ROOTS, FOREST_SUFFIXES);
 export const wildernessSwamp: Theme = rootSuffixTheme("wildernessSwamp", SWAMP_ROOTS, SWAMP_SUFFIXES);
@@ -48,10 +101,30 @@ export const wildernessPlains: Theme = rootSuffixTheme("wildernessPlains", PLAIN
 // pool (Miller's Ford, Glasswater Pond style), rebuilt as a composable theme.
 // Bespoke (not rootSuffixTheme) since the possessive form ("Miller's Ford")
 // needs its own connector, distinct from the plain compound form.
-const WATER_POSSESSIVE_ROOTS = ["Miller", "Otter", "Widow", "Fisher", "Cooper", "Tanner", "Weaver"] as const;
-const WATER_PLAIN_ROOTS = ["Glass", "Thistle", "Hush", "Cinder", "Still", "Silver", "Willow", "Moon", "Stone", "Reed"] as const;
-const WATER_SUFFIXES = ["Ford", "Pond", "Mere", "Falls", "Spring", "Crossing", "Pool", "Run"] as const;
-const WATER_SUFFIXES_LOWER = WATER_SUFFIXES.map((s) => s.toLowerCase());
+const WATER_POSSESSIVE_ROOTS: Bank = {
+  categories: [
+    { name: "occupations", words: ["Miller", "Fisher", "Cooper", "Tanner", "Weaver"] },
+    { name: "other", words: ["Otter", "Widow"] },
+  ],
+};
+const WATER_PLAIN_ROOTS: Bank = {
+  categories: [
+    { name: "materials", words: ["Glass", "Silver", "Stone", "Cinder"] },
+    { name: "flora", words: ["Thistle", "Willow", "Reed"] },
+    { name: "descriptors", words: ["Hush", "Still", "Moon"] },
+  ],
+};
+const WATER_SUFFIXES: Bank = {
+  categories: [
+    { name: "water bodies", words: ["Pond", "Mere", "Pool", "Spring"] },
+    { name: "water crossing", words: ["Ford", "Falls", "Crossing", "Run"] },
+  ],
+};
+// Lowercased once here (a flat categorized-bank helper isn't warranted for
+// just this one pattern) — mirrors _shared.ts's lowerBank approach.
+const WATER_SUFFIXES_LOWER: Bank = {
+  categories: WATER_SUFFIXES.categories.map((c) => ({ name: c.name, words: c.words.map((w) => w.toLowerCase()) })),
+};
 
 export const waterFeature: Theme = {
   id: "waterFeature",

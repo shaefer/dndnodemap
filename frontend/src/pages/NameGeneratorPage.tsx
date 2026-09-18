@@ -141,14 +141,33 @@ export function NameGeneratorPage() {
           Word lists — "{themeId}"
         </summary>
         <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 12 }}>
-          {listWordLists(theme).map((list) => (
-            <div key={list.name}>
-              <div style={{ fontWeight: 600, marginBottom: 2 }}>
-                {list.name} <span style={{ fontWeight: 400, color: "#888" }}>({list.words.length} words)</span>
-              </div>
-              <div style={{ color: "#444", lineHeight: 1.6 }}>{list.words.join(", ")}</div>
-            </div>
-          ))}
+          {(() => {
+            const lists = listWordLists(theme);
+            const topLevel = lists.filter((l) => l.parent === undefined);
+            return topLevel.map((list) => {
+              const categories = lists.filter((l) => l.parent === list.name);
+              return (
+                <div key={list.name}>
+                  <div style={{ fontWeight: 600, marginBottom: 2 }}>
+                    {list.name} <span style={{ fontWeight: 400, color: "#888" }}>({list.words.length} words)</span>
+                  </div>
+                  <div style={{ color: "#444", lineHeight: 1.6 }}>{list.words.join(", ")}</div>
+                  {categories.length > 0 && (
+                    <div style={{ marginTop: 8, marginLeft: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+                      {categories.map((cat) => (
+                        <div key={cat.name}>
+                          <div style={{ fontWeight: 500, marginBottom: 2 }}>
+                            {cat.name} <span style={{ fontWeight: 400, color: "#888" }}>({cat.words.length} words)</span>
+                          </div>
+                          <div style={{ color: "#666", lineHeight: 1.6 }}>{cat.words.join(", ")}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            });
+          })()}
         </div>
       </details>
 

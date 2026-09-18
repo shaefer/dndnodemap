@@ -1,46 +1,30 @@
-import type { Theme } from "../types";
+import type { Bank, Theme } from "../types";
+import { rootSuffixPatterns } from "./_shared";
 
 // Dark/mysterious flavor for ruins, dungeons, lairs, and landmarks.
-const ADJECTIVES = [
-  "Sunken", "Wraith", "Gloom", "Ashen", "Bone", "Silent", "Broken", "Blackened",
-  "Weeping", "Whispering", "Shattered", "Forsaken", "Drowned", "Ember", "Cursed",
-  "Forgotten", "Old", "Black", "Grey", "Hollow",
-] as const;
+// Both banks are categorized (M4.14) — see themes/region.ts for the full
+// rationale on category-weighted picking.
+const ADJECTIVES: Bank = {
+  categories: [
+    { name: "decay", words: ["Sunken", "Broken", "Shattered", "Drowned", "Forgotten", "Forsaken"] },
+    { name: "somber", words: ["Silent", "Weeping", "Whispering", "Hollow", "Old"] },
+    { name: "ominous", words: ["Wraith", "Gloom", "Cursed"] },
+    { name: "elemental", words: ["Ashen", "Bone", "Ember", "Black", "Blackened", "Grey"] },
+  ],
+};
 
 // Stored capitalized (for the two-word form: "Sunken Spire"); a lowercase
-// derived copy feeds the compound form ("Gloomgate") without duplicating data.
-const NOUNS = [
-  "Hollow", "Spire", "Gate", "Mere", "Barrow", "Keep", "Fane", "Cairn", "Crypt",
-  "Throne", "Vault", "Watch", "Reach", "Hold", "Maw", "Deep",
-] as const;
-const NOUNS_LOWER = NOUNS.map((n) => n.toLowerCase());
+// derived copy feeds the compound form ("Gloomgate") without duplicating
+// data — see _shared.ts's rootSuffixPatterns.
+const NOUNS: Bank = {
+  categories: [
+    { name: "burial", words: ["Barrow", "Cairn", "Crypt", "Vault", "Maw"] },
+    { name: "structures", words: ["Spire", "Gate", "Keep", "Fane", "Throne", "Hold", "Watch"] },
+    { name: "landscape", words: ["Hollow", "Mere", "Reach", "Deep"] },
+  ],
+};
 
 export const poiFanciful: Theme = {
   id: "poiFanciful",
-  patterns: [
-    {
-      id: "compound",
-      slots: [
-        { type: "bank", bank: ADJECTIVES, name: "adjectives" },
-        { type: "bank", bank: NOUNS_LOWER, name: "nouns" },
-      ],
-    },
-    {
-      id: "two-word",
-      slots: [
-        { type: "bank", bank: ADJECTIVES, name: "adjectives" },
-        { type: "literal", text: " " },
-        { type: "bank", bank: NOUNS, name: "nouns" },
-      ],
-    },
-    {
-      id: "the-two-word",
-      slots: [
-        { type: "literal", text: "The " },
-        { type: "bank", bank: ADJECTIVES, name: "adjectives" },
-        { type: "literal", text: " " },
-        { type: "bank", bank: NOUNS, name: "nouns" },
-      ],
-    },
-  ],
+  patterns: rootSuffixPatterns(ADJECTIVES, NOUNS, { roots: "adjectives", suffixes: "nouns" }),
 };

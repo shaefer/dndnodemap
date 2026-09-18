@@ -1,18 +1,29 @@
-import type { Theme } from "../types";
+import type { Bank, Theme } from "../types";
 
 // Classic medieval root+suffix compounding ("Ash" + "ford" = "Ashford").
-// ~22 roots x ~20 suffixes is several hundred combinations from a two-slot
-// pattern alone — real variance from a small, easy-to-extend word list.
-const ROOTS = [
-  "Ash", "Mill", "Thorn", "Dusk", "Briar", "Crest", "Iron", "Fen", "Cold", "Salt",
-  "Green", "Stone", "Raven", "Wolf", "Old", "High", "Black", "White", "Silver", "Storm",
-  "Oak", "Elm", "Bramble", "Hollow", "Marsh", "Wynd", "Grey", "Long", "Amber", "Hazel",
-] as const;
+// Both banks are categorized (M4.14): a category is picked uniformly first,
+// then a word within it, so a small category (e.g. "fauna", 2 words) still
+// gets an equal shot against a larger one (e.g. "flora", 7 words).
+const ROOTS: Bank = {
+  categories: [
+    { name: "materials", words: ["Iron", "Stone", "Silver", "Amber"] },
+    { name: "colors", words: ["Black", "White", "Grey", "Green"] },
+    { name: "flora", words: ["Ash", "Oak", "Elm", "Bramble", "Hazel", "Thorn", "Briar"] },
+    { name: "fauna", words: ["Raven", "Wolf"] },
+    { name: "landscape", words: ["Fen", "Marsh", "Hollow", "Crest"] },
+    { name: "structures", words: ["Mill", "Wynd"] },
+    { name: "descriptors", words: ["Dusk", "Old", "High", "Long", "Cold", "Storm", "Salt"] },
+  ],
+};
 
-const SUFFIXES = [
-  "ford", "haven", "wall", "gate", "hollow", "moor", "mere", "wick", "burg", "ton",
-  "shire", "stead", "reach", "crest", "watch", "hold", "march", "dale", "brook", "worth",
-] as const;
+const SUFFIXES: Bank = {
+  categories: [
+    { name: "water features", words: ["ford", "mere", "brook", "reach"] },
+    { name: "fortification", words: ["wall", "burg", "hold", "watch", "march"] },
+    { name: "landform", words: ["hollow", "moor", "crest", "dale"] },
+    { name: "settlement type", words: ["haven", "gate", "wick", "ton", "shire", "stead", "worth"] },
+  ],
+};
 
 export const settlementMedieval: Theme = {
   id: "settlementMedieval",

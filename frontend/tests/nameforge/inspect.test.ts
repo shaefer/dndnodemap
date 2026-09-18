@@ -45,28 +45,41 @@ describe("describePattern", () => {
 });
 
 describe("listWordLists", () => {
-  it("returns one entry per named bank, with its full word list", () => {
+  it("returns an aggregate entry for a categorized bank, containing every category's words", () => {
     const lists = listWordLists(settlementMedieval);
-    expect(lists.map((l) => l.name).sort()).toEqual(["roots", "suffixes"]);
-    const roots = lists.find((l) => l.name === "roots")!;
+    const roots = lists.find((l) => l.name === "roots" && l.parent === undefined)!;
+    expect(roots).toBeDefined();
     expect(roots.words.length).toBeGreaterThan(0);
     expect(roots.words).toContain("Ash");
+  });
+
+  it("also returns each of a categorized bank's sub-categories, parented to the aggregate", () => {
+    const lists = listWordLists(settlementMedieval);
+    const flora = lists.find((l) => l.name === "flora")!;
+    expect(flora).toBeDefined();
+    expect(flora.parent).toBe("roots");
+    expect(flora.words).toContain("Oak");
+    // The aggregate must contain every word from every one of its categories.
+    const roots = lists.find((l) => l.name === "roots" && l.parent === undefined)!;
+    for (const word of flora.words) expect(roots.words).toContain(word);
   });
 
   it("dedupes a bank reused (even under a differently-cased derived copy) across multiple patterns by name", () => {
     // poiFanciful's "nouns" bank is drawn from in all three patterns, and the
     // compound pattern uses a separately-derived lowercase copy of it — both
     // are the same category to a human reviewer, so listWordLists must not
-    // report "nouns" twice.
+    // report the "nouns" aggregate twice, nor any of its sub-categories twice.
     const lists = listWordLists(poiFanciful);
-    const nounEntries = lists.filter((l) => l.name === "nouns");
-    expect(nounEntries.length).toBe(1);
-    expect(lists.map((l) => l.name).sort()).toEqual(["adjectives", "nouns"]);
+    const nounAggregates = lists.filter((l) => l.name === "nouns" && l.parent === undefined);
+    expect(nounAggregates.length).toBe(1);
+    const burialEntries = lists.filter((l) => l.name === "burial");
+    expect(burialEntries.length).toBe(1);
   });
 
-  it("gives the water feature theme's two distinct root banks distinct names", () => {
+  it("gives the water feature theme's two distinct root banks distinct aggregate names", () => {
     const lists = listWordLists(waterFeature);
-    expect(lists.map((l) => l.name).sort()).toEqual(["possessive roots", "roots", "suffixes"]);
+    const topLevel = lists.filter((l) => l.parent === undefined).map((l) => l.name);
+    expect(topLevel.sort()).toEqual(["possessive roots", "roots", "suffixes"]);
   });
 
   it("exposes a syllableChain's start/middle/end pools as separate named lists", () => {
@@ -85,7 +98,7 @@ describe("listWordLists", () => {
 
   it("wildernessForest's roots/suffixes reflect its own word set, not another biome's", () => {
     const lists = listWordLists(wildernessForest);
-    const roots = lists.find((l) => l.name === "roots")!;
+    const roots = lists.find((l) => l.name === "roots" && l.parent === undefined)!;
     expect(roots.words).toContain("Oak");
   });
 });
