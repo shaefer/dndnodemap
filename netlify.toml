@@ -1,0 +1,12 @@
+# Netlify build config for the frontend/ Vite app. backend/ is deployed
+# separately (AWS SAM/Lambda, see docs/overworld-map-app-spec-v2.md Section
+# 14) and is untouched by this file.
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # Pinned to match the Node version this project is developed/tested against
+  # locally — Netlify's own default build image can lag behind.
+  NODE_VERSION = "24"
