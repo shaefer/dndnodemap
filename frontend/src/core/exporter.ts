@@ -249,7 +249,16 @@ function factionTerritorySvg(factions: Faction[], nodeById: Map<string, MapNode>
   return parts.join("");
 }
 
-export function toSVGString(map: WorldMap, scale = 1): string {
+export interface SVGRenderOptions {
+  showTerrain?: boolean;
+  showFactions?: boolean;
+  showDirectionLabels?: boolean;
+}
+
+export function toSVGString(map: WorldMap, scale = 1, options: SVGRenderOptions = {}): string {
+  const showTerrain = options.showTerrain ?? true;
+  const showFactions = options.showFactions ?? true;
+  const showDirectionLabels = options.showDirectionLabels ?? true;
   const w = SVG_W * scale;
   const h = SVG_H * scale;
   const gridCols = map.params.gridCols;
@@ -268,10 +277,10 @@ export function toSVGString(map: WorldMap, scale = 1): string {
   );
 
   const project = (node: MapNode): Point => ({ x: nx(node), y: ny(node) });
-  if (map.extensions.terrainZones && map.extensions.terrainZones.length > 0) {
+  if (showTerrain && map.extensions.terrainZones && map.extensions.terrainZones.length > 0) {
     parts.push("<g>", terrainWashSvg(map.extensions.terrainZones, nodeById, project), "</g>");
   }
-  if (map.extensions.factions && map.extensions.factions.length > 0) {
+  if (showFactions && map.extensions.factions && map.extensions.factions.length > 0) {
     parts.push("<g>", factionTerritorySvg(map.extensions.factions, nodeById, project), "</g>");
   }
 
@@ -301,10 +310,12 @@ export function toSVGString(map: WorldMap, scale = 1): string {
     if (edge.connectionType === "pass") {
       parts.push(`<text x="${mx}" y="${my - 14}" text-anchor="middle" font-size="9" fill="${style.stroke}">▲</text>`);
     }
-    const dirColor = edge.checkRequired ? CHECK_OVERLAY_COLOR : style.stroke;
-    parts.push(
-      `<text x="${mx}" y="${my - 5}" text-anchor="middle" font-size="9" fill="${dirColor}" opacity="0.85">${edge.direction}</text>`
-    );
+    if (showDirectionLabels) {
+      const dirColor = edge.checkRequired ? CHECK_OVERLAY_COLOR : style.stroke;
+      parts.push(
+        `<text x="${mx}" y="${my - 5}" text-anchor="middle" font-size="9" fill="${dirColor}" opacity="0.85">${edge.direction}</text>`
+      );
+    }
   }
   parts.push("</g>");
 

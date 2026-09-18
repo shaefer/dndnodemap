@@ -7,6 +7,8 @@ interface ToolbarProps {
   onToggleFactions: () => void;
   directionLabelsVisible: boolean;
   onToggleDirectionLabels: () => void;
+  onDownloadImage: () => void;
+  imageExportError?: string | null;
   zoomPercent: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -38,6 +40,8 @@ export function Toolbar({
   onToggleFactions,
   directionLabelsVisible,
   onToggleDirectionLabels,
+  onDownloadImage,
+  imageExportError,
   zoomPercent,
   onZoomIn,
   onZoomOut,
@@ -88,6 +92,15 @@ export function Toolbar({
         ⇢ Directions
       </button>
       <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: "auto" }}>
+        <button
+          type="button"
+          onClick={onDownloadImage}
+          title="Download a PNG picture of the map, matching what's currently shown"
+          style={buttonStyle(false, false)}
+        >
+          ⬇ Image
+        </button>
+        {imageExportError && <span style={{ color: "#D85A30", fontSize: 11 }}>{imageExportError}</span>}
         <button type="button" onClick={onFitToViewport} title="Fit the whole map to the viewport" style={buttonStyle(false, false)}>
           ⛶ Fit
         </button>

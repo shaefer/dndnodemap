@@ -149,4 +149,44 @@ describe("toSVGString", () => {
     expect(svg).toContain("The Ashen Concord");
     expect(svg).toContain('stroke-dasharray="8,4"'); // disputed border style
   });
+
+  describe("SVGRenderOptions (M4.11 — WYSIWYG image export)", () => {
+    it("renders direction labels by default and omits them with showDirectionLabels: false", () => {
+      const on = toSVGString(map);
+      const off = toSVGString(map, 1, { showDirectionLabels: false });
+      for (const edge of map.edges) {
+        expect(on).toContain(`>${edge.direction}</text>`);
+        expect(off).not.toContain(`>${edge.direction}</text>`);
+      }
+    });
+
+    it("omits terrain wash when showTerrain: false, even though terrainZones data exists", () => {
+      const generated = generateMap(DEFAULT_PARAMS);
+      const zones = generated.extensions.terrainZones ?? [];
+      expect(zones.length).toBeGreaterThan(0);
+      const svg = toSVGString(generated, 1, { showTerrain: false });
+      for (const zone of zones) {
+        if (zone.nodeIds.length < 3) continue;
+        expect(svg).not.toContain(zone.label);
+      }
+    });
+
+    it("omits faction territory when showFactions: false, even though factions data exists", () => {
+      const withFaction: WorldMap = {
+        ...map,
+        extensions: {
+          factions: [
+            {
+              id: "f1",
+              name: "The Ashen Concord",
+              borderStyle: "disputed",
+              nodeIds: map.nodes.slice(0, 5).map((n) => n.id),
+            },
+          ],
+        },
+      };
+      const svg = toSVGString(withFaction, 1, { showFactions: false });
+      expect(svg).not.toContain("The Ashen Concord");
+    });
+  });
 });

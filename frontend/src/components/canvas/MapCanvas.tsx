@@ -3,6 +3,7 @@ import { selectExitsForNode, useMapStore } from "../../store/mapStore";
 import type { MapNode } from "../../types/map";
 import { Toolbar } from "../toolbar/Toolbar";
 import { EdgeLine } from "./EdgeLine";
+import { downloadMapImage } from "./exportImage";
 import { FactionTerritory } from "./FactionTerritory";
 import { NodeShape } from "./NodeShape";
 import { TerrainWash } from "./TerrainWash";
@@ -63,6 +64,7 @@ export function MapCanvas() {
   const [terrainVisible, setTerrainVisible] = useState(false);
   const [factionsVisible, setFactionsVisible] = useState(false);
   const [directionLabelsVisible, setDirectionLabelsVisible] = useState(true);
+  const [imageExportError, setImageExportError] = useState<string | null>(null);
 
   const gridCols = map.params.gridCols;
   const gridRows = map.params.gridRows;
@@ -171,6 +173,15 @@ export function MapCanvas() {
     });
   }
 
+  function handleDownloadImage() {
+    setImageExportError(null);
+    downloadMapImage(map, {
+      showTerrain: terrainVisible,
+      showFactions: factionsVisible,
+      showDirectionLabels: directionLabelsVisible,
+    }).catch((err) => setImageExportError(err instanceof Error ? err.message : "Could not export image."));
+  }
+
   function handleNodeEnter(node: MapNode, e: MouseEvent<SVGGElement>) {
     setHoveredNodeId(node.id);
     const wrap = wrapRef.current;
@@ -197,6 +208,8 @@ export function MapCanvas() {
         onToggleFactions={() => setFactionsVisible((v) => !v)}
         directionLabelsVisible={directionLabelsVisible}
         onToggleDirectionLabels={() => setDirectionLabelsVisible((v) => !v)}
+        onDownloadImage={handleDownloadImage}
+        imageExportError={imageExportError}
         zoomPercent={Math.round(transform.scale * 100)}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}

@@ -757,10 +757,12 @@ export function toMarkdown(map: WorldMap): string
 
 // SVG string — full document, white background, legend included, print-ready
 // Scale parameter: 1.0 = 1200×800px base
-export function toSVGString(map: WorldMap, scale?: number): string
+// options (M4.11): showTerrain/showFactions/showDirectionLabels, each
+// defaulting to true — lets a caller mirror a live layer-toggle state
+export function toSVGString(map: WorldMap, scale?: number, options?: SVGRenderOptions): string
 ```
 
-`toSVGString` must produce output identical in structure to the prototype HTML file's SVG rendering. No browser APIs — pure string construction. This makes it testable.
+`toSVGString` must produce output identical in structure to the prototype HTML file's SVG rendering. No browser APIs — pure string construction. This makes it testable. The browser-only PNG rasterization step (M4.11's `components/canvas/exportImage.ts`) layers on top of this rather than duplicating it.
 
 ---
 
@@ -1527,6 +1529,16 @@ Deliverables: `core/layoutRelax.ts` (new) — a geometry-only visual pass (Secti
 
 Acceptance: `layoutRelaxStrength: 0` leaves node positions bit-identical to the pre-relaxation generator output; the pass is fully deterministic and consumes zero `rng()` draws; mean absolute angular error between each edge's declared direction and its actual on-screen bearing drops measurably for both algorithms across many seeds (measured: grid 1.482→0.41 rad, radial 1.803→1.57 rad); the separation floor (`layoutNodeSpacing`) holds as a hard guarantee regardless of `layoutDirectionWeight`; every node stays within `[0, gridCols-1] × [0, gridRows-1]`; `validateMap` stays clean across both algorithms and knob extremes, with explicit coverage of invariant 4 (the one invariant node movement can break); visually verified via headless-Chrome screenshot — before/after pairs show visibly reduced crowding and edges reading closer to their declared direction.
 
+### M4.11 — Export as image
+
+Deliverables: `core/exporter.ts`'s `toSVGString(map, scale, options)` gains a third, optional `SVGRenderOptions` parameter (`showTerrain`/`showFactions`/`showDirectionLabels`, all defaulting to `true` — fully backward compatible with every existing call site), gating the same three renders `MapCanvas.tsx` already toggles (`TerrainWash`, `FactionTerritory`, per-edge direction labels). `components/canvas/exportImage.ts` (new) — a browser-only rasterization helper (`downloadMapImage`) that calls `toSVGString` at a fixed `IMAGE_EXPORT_SCALE = 2` (2400×1600), wraps it in a `Blob`, loads it into an `Image`, draws it to an offscreen `<canvas>`, and downloads the result as a PNG via `canvas.toBlob` — same Blob→objectURL→anchor-click→revoke pattern as `GeneratePanel.tsx`'s existing "Download JSON" button. `Toolbar.tsx` gains a "⬇ Image" button next to the zoom controls; `MapCanvas.tsx` wires it to the live `terrainVisible`/`factionsVisible`/`directionLabelsVisible` toggle state so the export is WYSIWYG (matches whatever's currently shown on screen), with a small inline error message on failure.
+
+Acceptance: `toSVGString`'s new options are unit-tested in isolation (pure, DOM-free) — `showDirectionLabels: false` omits every edge's direction `<text>`, `showTerrain: false`/`showFactions: false` omit terrain wash/faction territory even when that extension data exists, and every pre-existing `toSVGString` test keeps passing unmodified; a rendered sample map's PNG output at the fixed 2x scale measured well under 1MB (~250KB for a default 49-node map), so no file-size control was added; visually verified via headless-Chrome screenshot of both the live toolbar layout and the rasterized SVG-at-export-resolution output. This fulfills the PNG portion of M6's originally-listed "PNG/SVG/Markdown export" deliverable ahead of schedule — SVG/Markdown still aren't wired to download buttons (see M6). No `ALGORITHM_VERSION`/`PARAMS_CODEC_VERSION` bump — this touches only export rendering, not `GenerationParams` or generation output. Explicitly out of scope, and not exercised by Claude: the actual click→download browser flow (Image loading a blob URL, canvas draw, `toBlob`) is interactive and wasn't clicked through in a real browser — same caveat as this project's other unclicked interactive flows (see Current Status).
+
+### M4.11.1 — Custom hiding (planned, not yet built)
+
+For producing player-safe map handouts: an "Unknown" node designation (DM knows what it is, players don't), a "partially known" state (a node's existence/location is shown but its type/subtype is hidden behind the generic Unknown designation), and a "fully hidden" state (the node and any edges connected to it are omitted entirely from a player-facing export — not just visually dimmed). Whether "Unknown" becomes a fourth `NodeType` or an orthogonal visibility flag (like `BoundaryMarker`) is an open design question per Section 3c's fork-vs-additive-feature heuristic — not resolved yet. Reserved as a milestone number per explicit user request when M4.11 was scoped; design and implementation deferred to when this is picked up.
+
 ### M5 — Edit panels
 Deliverables: `NodePanel.tsx`, `EdgePanel.tsx`, `DirectionPicker.tsx`, `NodeTypeSelect.tsx`
 
@@ -1535,7 +1547,7 @@ Acceptance: can rename a node inline, change its type, add an edge via direction
 **Note (added after M4.5/M4.6 were inserted):** "change its type" now means the full Tier 1 + Tier 1.5 fork + Tier 2 subtype + optional `BoundaryMarker` — not just a bare `NodeType` dropdown. This closes the gap flagged earlier in the project (Section 11's View C never actually specified a subtype/boundary editing surface). Confirm the exact control layout when M5 starts; not designed yet.
 
 ### M6 — Library and export
-Deliverables: `LibraryPanel.tsx`, `ReferenceTableModal.tsx`, PNG/SVG/Markdown export
+Deliverables: `LibraryPanel.tsx`, `ReferenceTableModal.tsx`, PNG/SVG/Markdown export (**PNG export already shipped in M4.11** — this milestone only needs to wire up SVG and Markdown download buttons, mirroring the existing "Download JSON"/"Download Image" pattern)
 
 Acceptance: can save a map to library, reload it, and get identical output; reference table matches `node-reference.md` format; PNG export is crisp at 2× resolution; SVG opens correctly in a browser.
 
