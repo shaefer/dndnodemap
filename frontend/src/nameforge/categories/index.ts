@@ -1,6 +1,8 @@
 export {
   COLORS,
   DIRECTIONS,
+  EPITHETS,
+  FANTASY_CREATURES,
   FAUNA,
   FLORA,
   GEMS,

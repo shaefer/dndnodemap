@@ -15,7 +15,7 @@ import {
   wildernessSwamp,
   wildernessTundra,
 } from "../../src/nameforge/themes/wilderness";
-import type { Theme } from "../../src/nameforge/types";
+import type { Theme, WordCategory } from "../../src/nameforge/types";
 
 const ALL_THEMES: Theme[] = [
   settlementMedieval,
@@ -145,27 +145,30 @@ describe("category-weighted bank picking (M4.14)", () => {
   });
 
   it("a small category is not swamped by a much larger category in the same bank", () => {
-    // settlementMedieval's "roots" bank mixes shared 15-16-word categories
-    // (colors, materials, flora, fauna, directions, landscape descriptors)
-    // with one small theme-specific category ("structures", 6 words) — a
-    // real, current size disparity to prove the property against.
-    const categories = listWordLists(settlementMedieval).filter((l) => l.parent === "roots");
-    const structures = categories.find((c) => c.name === "structures")!;
-    const colors = categories.find((c) => c.name === "colors")!;
-    expect(structures.words.length).toBeLessThan(colors.words.length / 2);
+    // Isolated test theme rather than depending on some production theme
+    // happening to still have a small category (M4.16.1's content pass
+    // brought every production category up near 20+, which is exactly what
+    // stopped this test from having a real disparity to check — the
+    // property itself still needs proving independent of current content).
+    const small: WordCategory = { name: "small", words: ["A", "B"] };
+    const large: WordCategory = { name: "large", words: Array.from({ length: 20 }, (_, i) => `L${i}`) };
+    const theme: Theme = {
+      id: "testSizeDisparity",
+      patterns: [{ id: "pick", slots: [{ type: "bank", bank: { categories: [small, large] } }] }],
+    };
 
-    let structuresCount = 0;
-    let colorsCount = 0;
+    let smallCount = 0;
+    let largeCount = 0;
     const rng = makeRng(2);
     const N = 5000;
     for (let i = 0; i < N; i++) {
-      const root = generateFromPattern(settlementMedieval, "compound", rng).parts[0];
-      if (structures.words.includes(root)) structuresCount++;
-      if (colors.words.includes(root)) colorsCount++;
+      const picked = generateFromPattern(theme, "pick", rng).text;
+      if (small.words.includes(picked)) smallCount++;
+      if (large.words.includes(picked)) largeCount++;
     }
-    // Proportional-to-size would give colors ~2.5x+ structures's count;
-    // category weighting should keep them within a much smaller ratio.
-    const ratio = colorsCount / structuresCount;
+    // Proportional-to-size would give large ~10x small's count; category
+    // weighting should keep them within a much smaller ratio.
+    const ratio = largeCount / smallCount;
     expect(ratio).toBeLessThan(2);
   });
 });

@@ -1,15 +1,33 @@
-import { COLORS, DIRECTIONS, FAUNA, FLORA, LANDSCAPE_DESCRIPTORS, MATERIALS, PERSONAL_NAMES } from "../categories";
+import {
+  COLORS,
+  DIRECTIONS,
+  FANTASY_CREATURES,
+  FAUNA,
+  FLORA,
+  GEMS,
+  LANDSCAPE_DESCRIPTORS,
+  MATERIALS,
+  PERSONAL_NAMES,
+} from "../categories";
 import type { Bank, Theme, WordCategory } from "../types";
 
 // Classic medieval root+suffix compounding ("Ash" + "ford" = "Ashford"),
-// plus (M4.15) a human-regional possessive pattern ("Devon's Ford") and a
-// plain descriptive two-word pattern ("Northern Bridge") — real cadence
-// variety beyond "every settlement is a fantasy compound."
+// a human-regional possessive pattern ("Devon's Ford"), a plain descriptive
+// two-word pattern ("Northern Bridge"), and (M4.16.1) two "named after a
+// beast" patterns ("Red Dragon Hall", "Crystal Griffon's Barrow") — real
+// cadence variety beyond "every settlement is a fantasy compound."
 //
 // Roots mix shared generic categories (M4.15 — colors/materials/flora/fauna/
 // directions/landscape are reused across many themes, not hand-duplicated)
 // with one settlement-specific category (structures) that doesn't generalize.
-const STRUCTURES: WordCategory = { name: "structures", words: ["Mill", "Wynd", "Bridge", "Hall", "Barrow", "Croft"] };
+const STRUCTURES: WordCategory = {
+  name: "structures",
+  words: [
+    "Mill", "Wynd", "Bridge", "Hall", "Barrow", "Croft", "Tower", "Chapel",
+    "Market", "Forge", "Granary", "Stable", "Tavern", "Smithy", "Wharf", "Manor",
+    "Priory", "Guildhall", "Almonry", "Dovecote",
+  ],
+};
 
 const ROOTS: Bank = {
   categories: [COLORS, MATERIALS, FLORA, FAUNA, DIRECTIONS, LANDSCAPE_DESCRIPTORS, STRUCTURES],
@@ -19,24 +37,63 @@ const ROOTS: Bank = {
 // lowercased derived copy feeds the compound form ("Ashford") — same
 // approach as _shared.ts's rootSuffixPatterns.
 const SUFFIXES_CATEGORIES: WordCategory[] = [
-  { name: "water features", words: ["Ford", "Mere", "Brook", "Reach", "Ferry", "Weir", "Spring", "Bourne"] },
+  {
+    name: "water features",
+    words: [
+      "Ford", "Mere", "Brook", "Reach", "Ferry", "Weir", "Spring", "Bourne",
+      "Wash", "Rill", "Beck", "Burn", "Firth", "Sound", "Strand", "Race",
+      "Lade", "Sluice", "Fleet", "Tarn",
+    ],
+  },
   {
     name: "fortification",
-    words: ["Wall", "Burg", "Hold", "Watch", "March", "Keep", "Bastion", "Garrison", "Rampart"],
+    words: [
+      "Wall", "Burg", "Hold", "Watch", "March", "Keep", "Bastion", "Garrison", "Rampart",
+      "Redoubt", "Bulwark", "Citadel", "Stockade", "Palisade", "Barbican", "Turret", "Fortress", "Battlement",
+      "Motte", "Bailey",
+    ],
   },
   // No "Hollow" here on purpose — it's already in the shared
   // LANDSCAPE_DESCRIPTORS category these names draw their roots from, and a
   // word on both sides lets the compound pattern render "Hollowhollow".
-  { name: "landform", words: ["Hurst", "Moor", "Crest", "Dale", "Ridge", "Hill", "Glen", "Combe"] },
+  {
+    name: "landform",
+    // No "Scar" (collides with COLORS' "Scarlet") and no "Crag" (collides
+    // with LANDSCAPE_DESCRIPTORS' "Craggy") — both roots this bank sits next
+    // to in the compound pattern.
+    words: [
+      "Hurst", "Moor", "Crest", "Dale", "Ridge", "Hill", "Glen", "Combe", "Fell", "Knoll",
+      "Bluff", "Cleeve", "Tor", "Brae", "Holt", "Weald", "Vale", "Dell", "Heath", "Cwm",
+    ],
+  },
   {
     name: "settlement type",
-    words: ["Haven", "Gate", "Wick", "Ton", "Shire", "Stead", "Worth", "Bury", "Ham", "Thorpe", "Don", "Holm"],
+    words: [
+      "Haven", "Gate", "Wick", "Ton", "Shire", "Stead", "Worth", "Bury", "Ham", "Thorpe", "Don", "Holm",
+      "Field", "Well", "Cross", "Wood", "Minster", "Chester", "By", "Thwaite", "Garth", "Toft", "Stow", "Ness",
+    ],
   },
 ];
 const SUFFIXES: Bank = { categories: SUFFIXES_CATEGORIES };
 const SUFFIXES_LOWER: Bank = {
   categories: SUFFIXES_CATEGORIES.map((c) => ({ name: c.name, words: c.words.map((w) => w.toLowerCase()) })),
 };
+
+// For the two "named after a beast" patterns (M4.16.1). The adjective slot
+// deliberately uses only genuinely adjective-flavored shared categories
+// (color/gem/material/landscape) — not the full ROOTS aggregate, which also
+// mixes in flora/fauna/structures that don't read naturally as adjectives
+// ("Oak Dragon Hall"). The creature slot gives flora/fauna/fantasy-creatures
+// one category each, so — per the established category-weighting rule — a
+// name is about equally likely to reference a plant, a real animal, or a
+// monster, regardless of how many words happen to be in each list.
+// A locally-filtered copy of COLORS excluding "Ashen" — it stem-collides
+// with FLORA's "Ash" ("Ashen Ash Hall") once both sit in this pattern. The
+// shared COLORS export itself is untouched; this filtering is specific to
+// this one bank pairing.
+const BEAST_COLORS: WordCategory = { name: "colors", words: COLORS.words.filter((w) => w !== "Ashen") };
+const BEAST_ADJECTIVES: Bank = { categories: [BEAST_COLORS, GEMS, MATERIALS, LANDSCAPE_DESCRIPTORS] };
+const BEAST_SUBJECTS: Bank = { categories: [FLORA, FAUNA, FANTASY_CREATURES] };
 
 export const settlementMedieval: Theme = {
   id: "settlementMedieval",
@@ -65,6 +122,28 @@ export const settlementMedieval: Theme = {
         { type: "bank", bank: DIRECTIONS.words, name: "directions" },
         { type: "literal", text: " " },
         { type: "bank", bank: STRUCTURES.words, name: "structures" },
+      ],
+    },
+    // "Red Dragon Hall" — named after a beast (M4.16.1).
+    {
+      id: "beast-descriptive",
+      slots: [
+        { type: "bank", bank: BEAST_ADJECTIVES, name: "beast adjectives" },
+        { type: "literal", text: " " },
+        { type: "bank", bank: BEAST_SUBJECTS, name: "beast subjects" },
+        { type: "literal", text: " " },
+        { type: "bank", bank: SUFFIXES, name: "suffixes" },
+      ],
+    },
+    // "Crystal Griffon's Barrow" — the possessive variant of the above.
+    {
+      id: "beast-possessive",
+      slots: [
+        { type: "bank", bank: BEAST_ADJECTIVES, name: "beast adjectives" },
+        { type: "literal", text: " " },
+        { type: "bank", bank: BEAST_SUBJECTS, name: "beast subjects" },
+        { type: "literal", text: "'s " },
+        { type: "bank", bank: SUFFIXES, name: "suffixes" },
       ],
     },
   ],

@@ -114,7 +114,20 @@ import { BIOMES } from "./taxonomy";
 // became weight-proportional (Pattern.weight, default 1) rather than strictly
 // uniform. Bigger banks and more patterns per theme both shift the naming
 // pass's rng() sequence for every seed.
-export const ALGORITHM_VERSION = "2.7.0";
+// 2.8.0 (M4.16.1): every already-wired nameforge theme's word lists grew
+// substantially (most categories now sit at 16-24+ entries, several 2-3x
+// their 2.7.0 size — personalNames alone grew from ~12 to 50) and
+// settlementMedieval gained two new "named after a beast" patterns
+// ("Red Dragon Hall", "Crystal Griffon's Barrow"). Bigger banks change which
+// word a given rng() draw resolves to (category-weighted picking still
+// consumes the same number of draws per pick, but the word-within-category
+// index range is now wider), and settlementMedieval's added patterns shift
+// weighted pattern selection — both change the naming pass's output for
+// every seed. The 17 race themes (nameforge/themes/races/) were also
+// expanded and gained a fourth pattern (native-of-epithet), but race themes
+// still aren't wired into generateMap() (that's M4.17), so they don't factor
+// into this bump.
+export const ALGORITHM_VERSION = "2.8.0";
 
 // --- Step 1: node placement ("grid" algorithm) -------------------------------
 

@@ -2,7 +2,7 @@ import { FAUNA } from "../../categories";
 import type { Theme } from "../../types";
 import { cats, raceTheme } from "./_shared";
 
-// The wilder peoples and aberrations. Same three-cadence template as every
+// The wilder peoples and aberrations. Same four-cadence template as every
 // other race (see _shared.ts) — the distinctiveness lives in the phonetics
 // and the word content.
 
@@ -17,13 +17,37 @@ export const orcish: Theme = raceTheme({
     maxMiddle: 2,
   },
   roots: cats(
-    { name: "war", words: ["Blood", "Battle", "Rage", "Gore", "Tusk", "Bone", "Fang", "Scar", "Wound", "Cleaver"] },
-    { name: "strength", words: ["Iron", "Brute", "Crush", "Smash", "Break", "Grip", "Hard", "Heavy", "Savage", "Red"] },
+    {
+      name: "war",
+      words: [
+        "Blood", "Battle", "Rage", "Gore", "Tusk", "Bone", "Fang", "Scar", "Wound", "Cleaver",
+        "Slaughter", "Warpath", "Skirmish", "Onslaught", "Ambush", "Conquest", "Bloodlust", "Reaver",
+      ],
+    },
+    {
+      name: "strength",
+      words: [
+        "Iron", "Brute", "Crush", "Smash", "Break", "Grip", "Hard", "Heavy", "Savage", "Red",
+        "Mighty", "Brutal", "Ferocious", "Merciless", "Vicious", "Grueling", "Unrelenting", "Bloodied",
+      ],
+    },
     FAUNA,
   ),
   suffixes: cats(
-    { name: "orcish camps", words: ["Camp", "Pit", "Hold", "Maw", "Den", "Warren", "Grounds", "Kraal", "Stockade", "Spike"] },
-    { name: "orcish trophies", words: ["Stake", "Skull", "Banner", "Totem", "Pyre", "Ring", "Mound", "Gate"] },
+    {
+      name: "orcish camps",
+      words: [
+        "Camp", "Pit", "Hold", "Maw", "Den", "Warren", "Grounds", "Kraal", "Stockade", "Spike",
+        "Encampment", "Bivouac", "Outpost", "Garrison", "Muster", "Warcamp", "Bastion", "Rampart",
+      ],
+    },
+    {
+      name: "orcish trophies",
+      words: [
+        "Stake", "Skull", "Banner", "Totem", "Pyre", "Ring", "Mound", "Gate",
+        "Standard", "Effigy", "Cairn", "Gallows", "Warflag", "Charnel", "Shrine", "Altar",
+      ],
+    },
   ),
 });
 
@@ -38,13 +62,43 @@ export const goblin: Theme = raceTheme({
     maxMiddle: 1,
   },
   roots: cats(
-    { name: "scrap", words: ["Scrap", "Rust", "Junk", "Sharp", "Bent", "Patch", "Salvage", "Tatter", "Splinter", "Shiv"] },
-    { name: "squalor", words: ["Stink", "Muck", "Grime", "Reek", "Filth", "Mold", "Soot", "Slime", "Rot", "Ash"] },
-    { name: "cunning", words: ["Sneak", "Filch", "Snare", "Trick", "Pinch", "Skulk", "Creep", "Lurk", "Squeak", "Scurry"] },
+    {
+      name: "scrap",
+      words: [
+        "Scrap", "Rust", "Junk", "Sharp", "Bent", "Patch", "Salvage", "Tatter", "Splinter", "Shiv",
+        "Scrounge", "Cobble", "Rickety", "Ramshackle", "Tinker", "Jagged", "Broken", "Makeshift",
+      ],
+    },
+    {
+      name: "squalor",
+      words: [
+        "Stink", "Muck", "Grime", "Reek", "Filth", "Mold", "Soot", "Slime", "Rot", "Ash",
+        "Grubby", "Foul", "Fetid", "Squalid", "Dank", "Mildew", "Sludge", "Vermin",
+      ],
+    },
+    {
+      name: "cunning",
+      words: [
+        "Sneak", "Filch", "Snare", "Trick", "Pinch", "Skulk", "Creep", "Lurk", "Squeak", "Scurry",
+        "Scheme", "Pilfer", "Swindle", "Wheedle", "Cackle", "Snicker", "Grovel", "Backstab",
+      ],
+    },
   ),
   suffixes: cats(
-    { name: "goblin holes", words: ["Warren", "Hole", "Nest", "Pit", "Heap", "Den", "Burrow", "Midden", "Hovel", "Crawl"] },
-    { name: "goblin camps", words: ["Camp", "Shack", "Roost", "Stash", "Trap", "Perch", "Snarl", "Tangle"] },
+    {
+      name: "goblin holes",
+      words: [
+        "Warren", "Hole", "Nest", "Pit", "Heap", "Den", "Burrow", "Midden", "Hovel", "Crawl",
+        "Squat", "Nook", "Grotto", "Tunnel", "Cubby", "Shanty", "Dugout", "Alcove",
+      ],
+    },
+    {
+      name: "goblin camps",
+      words: [
+        "Camp", "Shack", "Roost", "Stash", "Trap", "Perch", "Snarl", "Tangle",
+        "Hideout", "Ambuscade", "Thicket", "Ratrun", "Sinkhole", "Backalley", "Covert", "Dustbowl",
+      ],
+    },
   ),
 });
 
@@ -59,13 +113,43 @@ export const minotaur: Theme = raceTheme({
     maxMiddle: 2,
   },
   roots: cats(
-    { name: "the bull", words: ["Brow", "Hoof", "Bull", "Gore", "Charge", "Bellow", "Snort", "Hide", "Muzzle", "Stampede"] },
-    { name: "the labyrinth", words: ["Serpentine", "Labyrinth", "Winding", "Crooked", "Endless", "Turning", "Spiral", "Curling", "Twisting", "Blind"] },
-    { name: "minotaur metals", words: ["Bronze", "Iron", "Brass", "Copper", "Stone", "Granite", "Basalt", "Obsidian"] },
+    {
+      name: "the bull",
+      words: [
+        "Brow", "Hoof", "Bull", "Gore", "Charge", "Bellow", "Snort", "Hide", "Muzzle", "Stampede",
+        "Rampage", "Trample", "Brawn", "Girth", "Flank", "Withers", "Haunches", "Bloodrage",
+      ],
+    },
+    {
+      name: "the labyrinth",
+      words: [
+        "Serpentine", "Labyrinth", "Winding", "Crooked", "Endless", "Turning", "Spiral", "Curling", "Twisting", "Blind",
+        "Meandering", "Convoluted", "Snaking", "Tangled", "Bewildering", "Circuitous", "Baffling", "Interlacing",
+      ],
+    },
+    {
+      name: "minotaur metals",
+      words: [
+        "Bronze", "Iron", "Brass", "Copper", "Stone", "Granite", "Basalt", "Obsidian",
+        "Steel", "Marble", "Slate", "Alloy", "Ore", "Flint", "Quartz", "Adamant",
+      ],
+    },
   ),
   suffixes: cats(
-    { name: "labyrinth places", words: ["Maze", "Warren", "Hall", "Arena", "Pit", "Run", "Gate", "Coil", "Crossing", "Den"] },
-    { name: "minotaur works", words: ["Horn", "Ring", "Throne", "Forge", "Pillar", "Vault", "Gallery", "Descent"] },
+    {
+      name: "labyrinth places",
+      words: [
+        "Maze", "Warren", "Hall", "Arena", "Pit", "Run", "Gate", "Coil", "Crossing", "Den",
+        "Rotunda", "Colosseum", "Gauntlet", "Passage", "Corridor", "Vestibule", "Enclosure", "Ringwall",
+      ],
+    },
+    {
+      name: "minotaur works",
+      words: [
+        "Horn", "Ring", "Throne", "Forge", "Pillar", "Vault", "Gallery", "Descent",
+        "Anvil", "Bastion", "Colonnade", "Obelisk", "Rampart", "Parapet", "Battlement", "Buttress",
+      ],
+    },
   ),
 });
 
@@ -80,13 +164,43 @@ export const lizardfolk: Theme = raceTheme({
     maxMiddle: 2,
   },
   roots: cats(
-    { name: "scale", words: ["Scale", "Fang", "Tooth", "Claw", "Tail", "Hide", "Crest", "Frill", "Jaw", "Molt"] },
-    { name: "marsh", words: ["Marsh", "Mud", "Silt", "Reed", "Swamp", "Brackish", "Sedge", "Murk", "Stagnant", "Fen"] },
-    { name: "the hunt", words: ["Torpid", "Stalk", "Lunge", "Sink", "Drown", "Coil", "Ambush", "Patient", "Still", "Cold"] },
+    {
+      name: "scale",
+      words: [
+        "Scale", "Fang", "Tooth", "Claw", "Tail", "Hide", "Crest", "Frill", "Jaw", "Molt",
+        "Talon", "Ridgeback", "Scute", "Underbite", "Webbing", "Barb", "Spine", "Gullet",
+      ],
+    },
+    {
+      name: "marsh",
+      words: [
+        "Marsh", "Mud", "Silt", "Reed", "Swamp", "Brackish", "Sedge", "Murk", "Stagnant", "Fen",
+        "Bayou", "Slough", "Peat", "Quagmire", "Backwater", "Mangrove", "Wetland", "Tidewater",
+      ],
+    },
+    {
+      name: "the hunt",
+      words: [
+        "Torpid", "Stalk", "Lunge", "Sink", "Drown", "Coil", "Ambush", "Patient", "Still", "Cold",
+        "Predatory", "Submerged", "Camouflaged", "Venomous", "Silent", "Watchful", "Merciless", "Voracious",
+      ],
+    },
   ),
   suffixes: cats(
-    { name: "lizardfolk nests", words: ["Nest", "Mire", "Bask", "Warren", "Shallows", "Hollow", "Mound", "Bog", "Den", "Spawn"] },
-    { name: "lizardfolk works", words: ["Hunt", "Reach", "Wallow", "Perch", "Crossing", "Snare", "Roost", "Hatchery"] },
+    {
+      name: "lizardfolk nests",
+      words: [
+        "Nest", "Mire", "Bask", "Warren", "Shallows", "Hollow", "Mound", "Bog", "Den", "Spawn",
+        "Rookery", "Lagoon", "Estuary", "Floodplain", "Backpool", "Thicket", "Sandbar", "Islet",
+      ],
+    },
+    {
+      name: "lizardfolk works",
+      words: [
+        "Hunt", "Reach", "Wallow", "Perch", "Crossing", "Snare", "Roost", "Hatchery",
+        "Feeding", "Foraging", "Migration", "Predation", "Territory", "Domain", "Enclave", "Refuge",
+      ],
+    },
   ),
 });
 
@@ -101,13 +215,43 @@ export const giant: Theme = raceTheme({
     maxMiddle: 2,
   },
   roots: cats(
-    { name: "sky", words: ["Thunder", "Storm", "Cloud", "Sky", "Gale", "Tempest", "Lightning", "Wind", "Rain", "Squall"] },
-    { name: "mountain", words: ["Mountain", "Boulder", "Peak", "Bluff", "Cliff", "Scree", "Rime", "Glacier", "Frost", "Stone"] },
-    { name: "titans", words: ["Titan", "Elder", "Great", "Vast", "Mighty", "Colossal", "Ancient", "Towering", "Immense", "Hoary"] },
+    {
+      name: "sky",
+      words: [
+        "Thunder", "Storm", "Cloud", "Sky", "Gale", "Tempest", "Lightning", "Wind", "Rain", "Squall",
+        "Skyfall", "Windswept", "Cyclone", "Downpour", "Hailstorm", "Zephyr", "Maelstrom", "Gust",
+      ],
+    },
+    {
+      name: "mountain",
+      words: [
+        "Mountain", "Boulder", "Peak", "Bluff", "Cliff", "Scree", "Rime", "Glacier", "Frost", "Stone",
+        "Avalanche", "Talus", "Precipice", "Highland", "Alpine", "Scarp", "Moraine", "Escarpment",
+      ],
+    },
+    {
+      name: "titans",
+      words: [
+        "Titan", "Elder", "Great", "Vast", "Mighty", "Colossal", "Ancient", "Towering", "Immense", "Hoary",
+        "Gargantuan", "Primordial", "Behemothic", "Monolithic", "Enormous", "Stalwart", "Venerable", "Boundless",
+      ],
+    },
   ),
   suffixes: cats(
-    { name: "giant halls", words: ["Heim", "Gard", "Hall", "Throne", "Hold", "Seat", "Keep", "Steading", "Longhall", "Barrow"] },
-    { name: "giant heights", words: ["Crag", "Summit", "Fell", "Reach", "Steppe", "Ridge", "Pass", "Shelf"] },
+    {
+      name: "giant halls",
+      words: [
+        "Heim", "Gard", "Hall", "Throne", "Hold", "Seat", "Keep", "Steading", "Longhall", "Barrow",
+        "Manor", "Palace", "Bastion", "Vault", "Fortress", "Sanctuary", "Citadel", "Domicile",
+      ],
+    },
+    {
+      name: "giant heights",
+      words: [
+        "Crag", "Summit", "Fell", "Reach", "Steppe", "Ridge", "Pass", "Shelf",
+        "Plateau", "Promontory", "Overlook", "Vantage", "Aerie", "Eyrie", "Spire", "Cornice",
+      ],
+    },
   ),
 });
 
@@ -122,13 +266,43 @@ export const illithid: Theme = raceTheme({
     maxMiddle: 2,
   },
   roots: cats(
-    { name: "the mind", words: ["Mind", "Thought", "Dream", "Psi", "Memory", "Will", "Cognition", "Reverie", "Intellect", "Notion"] },
-    { name: "the colony", words: ["Elder", "Thrall", "Brine", "Spawn", "Tadpole", "Cerebral", "Cephal", "Brood", "Larval", "Ganglion"] },
-    { name: "the deeps", words: ["Nether", "Void", "Sunless", "Abyssal", "Fathom", "Lightless", "Drowned", "Buried", "Silent", "Cold"] },
+    {
+      name: "the mind",
+      words: [
+        "Mind", "Thought", "Dream", "Psi", "Memory", "Will", "Cognition", "Reverie", "Intellect", "Notion",
+        "Consciousness", "Synapse", "Neural", "Psionic", "Telepathic", "Sentience", "Cognizance", "Perception",
+      ],
+    },
+    {
+      name: "the colony",
+      words: [
+        "Elder", "Thrall", "Brine", "Spawn", "Tadpole", "Cerebral", "Cephal", "Brood", "Larval", "Ganglion",
+        "Gestalt", "Progenitor", "Symbiont", "Parasitic", "Colonial", "Umbilical", "Gestation", "Metamorphic",
+      ],
+    },
+    {
+      name: "the deeps",
+      words: [
+        "Nether", "Void", "Sunless", "Abyssal", "Fathom", "Lightless", "Drowned", "Buried", "Silent", "Cold",
+        "Submerged", "Crushing", "Benthic", "Uncharted", "Pressurized", "Bottomless", "Frigid", "Vast",
+      ],
+    },
   ),
   suffixes: cats(
-    { name: "illithid colonies", words: ["Spire", "Pool", "Colony", "Nursery", "Deeps", "Vault", "Nexus", "Sanctum", "Hive", "Trench"] },
-    { name: "illithid works", words: ["Conclave", "Cistern", "Lattice", "Chorus", "Reservoir", "Strata", "Warren", "Gyre"] },
+    {
+      name: "illithid colonies",
+      words: [
+        "Spire", "Pool", "Colony", "Nursery", "Deeps", "Vault", "Nexus", "Sanctum", "Hive", "Trench",
+        "Enclave", "Chrysalis", "Incubator", "Larvarium", "Cavity", "Membrane", "Basin", "Grotto",
+      ],
+    },
+    {
+      name: "illithid works",
+      words: [
+        "Conclave", "Cistern", "Lattice", "Chorus", "Reservoir", "Strata", "Warren", "Gyre",
+        "Matrix", "Array", "Circuit", "Conduit", "Meridian", "Vortex", "Helix", "Spiral",
+      ],
+    },
   ),
 });
 
@@ -143,12 +317,42 @@ export const beholder: Theme = raceTheme({
     maxMiddle: 2,
   },
   roots: cats(
-    { name: "the eye", words: ["Eye", "Gaze", "Stalk", "Iris", "Pupil", "Sclera", "Lid", "Blink", "Stare", "Ray"] },
-    { name: "tyranny", words: ["Tyrant", "Sovereign", "Supreme", "Absolute", "Undisputed", "Perfect", "Sole", "Exalted", "Imperious", "Dread"] },
-    { name: "paranoia", words: ["Sleepless", "Watchful", "Vigilant", "Suspicious", "Wary", "Unblinking", "Restless", "Jealous", "Guarded", "Wakeful"] },
+    {
+      name: "the eye",
+      words: [
+        "Eye", "Gaze", "Stalk", "Iris", "Pupil", "Sclera", "Lid", "Blink", "Stare", "Ray",
+        "Glare", "Squint", "Ocular", "Retina", "Cornea", "Beam", "Glower", "Peer",
+      ],
+    },
+    {
+      name: "tyranny",
+      words: [
+        "Tyrant", "Sovereign", "Supreme", "Absolute", "Undisputed", "Perfect", "Sole", "Exalted", "Imperious", "Dread",
+        "Despotic", "Autocratic", "Domineering", "Omniscient", "Almighty", "Unchallenged", "Totalitarian", "Peerless",
+      ],
+    },
+    {
+      name: "paranoia",
+      words: [
+        "Sleepless", "Watchful", "Vigilant", "Suspicious", "Wary", "Unblinking", "Restless", "Jealous", "Guarded", "Wakeful",
+        "Distrustful", "Paranoid", "Cautious", "Alert", "Anxious", "Twitchy", "Overcautious", "Uneasy",
+      ],
+    },
   ),
   suffixes: cats(
-    { name: "beholder lairs", words: ["Lair", "Den", "Hollow", "Warren", "Sanctum", "Cavern", "Vault", "Roost", "Pit", "Throne"] },
-    { name: "beholder domains", words: ["Dominion", "Demesne", "Gallery", "Oculus", "Vantage", "Reach", "Perch", "Chamber"] },
+    {
+      name: "beholder lairs",
+      words: [
+        "Lair", "Den", "Hollow", "Warren", "Sanctum", "Cavern", "Vault", "Roost", "Pit", "Throne",
+        "Aerie", "Bastion", "Redoubt", "Enclave", "Nest", "Grotto", "Fortress", "Refuge",
+      ],
+    },
+    {
+      name: "beholder domains",
+      words: [
+        "Dominion", "Demesne", "Gallery", "Oculus", "Vantage", "Reach", "Perch", "Chamber",
+        "Territory", "Realm", "Province", "Expanse", "Purview", "Jurisdiction", "Hegemony", "Dynasty",
+      ],
+    },
   ),
 });

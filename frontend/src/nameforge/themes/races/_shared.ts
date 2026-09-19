@@ -1,16 +1,18 @@
+import { EPITHETS } from "../../categories";
 import type { Bank, Pattern, SyllableChain, Theme, WordCategory } from "../../types";
 
 // Shared shape for every race/species place-naming theme (M4.16).
 //
 // These themes name *places in a culture's style* — a dwarvish stronghold, an
 // orcish camp — not individual people. (Person naming arrives with M4.18's
-// legendary-figure generator.) Each race gets the same three-cadence
+// legendary-figure generator.) Each race gets the same four-cadence
 // template, so the variety between races comes from their word content and
 // phonetics rather than from each file inventing its own structure:
 //
-//   native     a pure invented word in that race's tongue   "Khazrundum"
-//   compound   a common-tongue compound place name          "Ironforge"
-//   native-of  the two blended into a phrase                "The Deeps of Khazrun"
+//   native          a pure invented word in that race's tongue   "Khazrundum"
+//   compound        a common-tongue compound place name          "Ironforge"
+//   native-of       the two blended into a phrase                "The Deeps of Khazrun"
+//   native-of-epithet  native-of plus a character epithet (M4.16.1) "The Crown of Graznak the Quick"
 //
 // A race can pass extra patterns for a flavor its culture specifically calls
 // for (goliath's hyphenated deed-names, for instance).
@@ -59,6 +61,20 @@ export function raceTheme(spec: RaceThemeSpec): Theme {
           { type: "bank", bank: spec.suffixes, name: "suffixes" },
           { type: "literal", text: " of " },
           { type: "syllableChain", chain: spec.chain },
+        ],
+      },
+      // "The Crown of Graznak the Quick" (M4.16.1) — native-of plus a
+      // character epithet, for places named after a specific notable figure
+      // rather than just "in this race's style."
+      {
+        id: "native-of-epithet",
+        slots: [
+          { type: "literal", text: "The " },
+          { type: "bank", bank: spec.suffixes, name: "suffixes" },
+          { type: "literal", text: " of " },
+          { type: "syllableChain", chain: spec.chain },
+          { type: "literal", text: " the " },
+          { type: "bank", bank: EPITHETS.words, name: "epithets" },
         ],
       },
       ...(spec.extraPatterns ?? []),

@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { makeRng } from "../../src/core/rng";
 import { ALL_RACE_THEMES, ALL_THEMES } from "../../src/nameforge";
 import { generateFromPattern, generateName } from "../../src/nameforge/generate";
-import { listWordLists } from "../../src/nameforge/inspect";
+import type { Bank, Slot } from "../../src/nameforge/types";
+
+function bankWords(bank: Bank): readonly string[] {
+  return "categories" in bank ? bank.categories.flatMap((c) => c.words) : bank;
+}
 
 // The 16 race/species place-naming themes added in M4.16 (human is
 // deliberately absent — settlementMedieval's possessive/descriptive patterns
@@ -44,37 +48,39 @@ describe("race themes (M4.16)", () => {
     }
   });
 
-  it("never lets a root and a suffix share a word or a stem, in ANY theme", () => {
-    // A word in both banks lets the compound pattern render "Forgeforge";
-    // a shared *stem* gives the subtler "Barrenbarrens" / "The Wild Wilds" /
-    // "Sandsands". Both were widespread on the first pass (13 of 16 races
-    // plus several wilderness/region themes), so this guards every theme,
-    // not just the race ones.
+  it("never lets two bank slots *in the same pattern* share a word or a stem", () => {
+    // A word shared by two bank slots that appear together in one pattern
+    // lets that pattern render "Forgeforge" (glued) or "The Wild Wilds"/
+    // "Dragon Dragon Hall" (spaced) — either way a repeat, not a name. This
+    // is scoped per-pattern (not "roots vs. every other bank in the theme")
+    // because M4.16.1 gave several themes more than one root-like/suffix
+    // -like bank pair (settlement's plain roots+suffixes vs. its separate
+    // beast-adjectives+beast-subjects+suffixes for the "named after a beast"
+    // patterns) — those pairs intentionally share source categories
+    // (colors, materials...) but never sit in the same pattern together, so
+    // a theme-wide check produces false positives there. Syllable-chain
+    // slots are skipped: they're rendered by concatenating pool entries
+    // directly, not picked-and-compared against a sibling bank slot, so
+    // this check doesn't apply to them.
     for (const theme of ALL_THEMES) {
-      const tops = listWordLists(theme).filter((l) => l.parent === undefined);
-      const roots = tops.find((l) => l.name === "roots");
-      if (!roots) continue;
-      // Compare roots against every other bank in the theme — the second
-      // half of a compound goes by different names across themes
-      // ("suffixes", "nouns", "compound suffixes"), and all of them can end
-      // up glued to a root.
-      const collisions: string[] = [];
-      // Syllable pools are excluded: they belong to the "native" pattern and
-      // are never glued to a root, so an overlap there is harmless (and in
-      // fact desirable — it's what makes a race's two naming styles sound
-      // like the same language).
-      const SYLLABLE_POOLS = ["start", "middle", "end"];
-      for (const other of tops) {
-        if (other.name === "roots" || SYLLABLE_POOLS.includes(other.name)) continue;
-        for (const r of roots.words) {
-          for (const s of other.words) {
-            const a = r.toLowerCase();
-            const b = s.toLowerCase();
-            if (a === b || a.startsWith(b) || b.startsWith(a)) collisions.push(`${r}+${s}`);
+      for (const pattern of theme.patterns) {
+        const bankSlots = pattern.slots.filter((s): s is Extract<Slot, { type: "bank" }> => s.type === "bank");
+        const collisions: string[] = [];
+        for (let i = 0; i < bankSlots.length; i++) {
+          for (let j = i + 1; j < bankSlots.length; j++) {
+            const wordsA = bankWords(bankSlots[i].bank);
+            const wordsB = bankWords(bankSlots[j].bank);
+            for (const a of wordsA) {
+              for (const b of wordsB) {
+                const la = a.toLowerCase();
+                const lb = b.toLowerCase();
+                if (la === lb || la.startsWith(lb) || lb.startsWith(la)) collisions.push(`${a}+${b}`);
+              }
+            }
           }
         }
+        expect(collisions, `${theme.id}/${pattern.id} bank-slot collisions`).toEqual([]);
       }
-      expect(collisions, `${theme.id} root/suffix collisions`).toEqual([]);
     }
   });
 

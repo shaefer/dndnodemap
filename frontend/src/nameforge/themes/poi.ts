@@ -3,14 +3,18 @@ import type { Bank, Theme } from "../types";
 import { rootSuffixPatterns } from "./_shared";
 
 // Dark/mysterious flavor for ruins, dungeons, lairs, and landmarks.
-// M4.15: reuses shared narrativeDescriptors/colors categories alongside a
-// poi-specific "ominous" one, and both noun categories expanded to 10-12.
+// Reuses shared narrativeDescriptors/colors categories alongside a
+// poi-specific "ominous" one (no "Ashen" here — it's already in COLORS,
+// which sits in this same aggregate bank).
 const ADJECTIVES: Bank = {
   categories: [
     NARRATIVE_DESCRIPTORS,
     {
       name: "ominous",
-      words: ["Wraith", "Gloom", "Ashen", "Bone", "Ember", "Blackened", "Ghastly", "Spectral", "Baleful", "Eldritch"],
+      words: [
+        "Wraith", "Gloom", "Bone", "Ember", "Blackened", "Ghastly", "Spectral", "Baleful", "Eldritch",
+        "Doom", "Withered", "Rotting", "Vile", "Foreboding", "Sinister", "Malevolent", "Accursed", "Dreadful", "Unholy", "Fell",
+      ],
     },
     COLORS,
   ],
@@ -21,12 +25,27 @@ const ADJECTIVES: Bank = {
 // data — see _shared.ts's rootSuffixPatterns.
 const NOUNS: Bank = {
   categories: [
-    { name: "burial", words: ["Barrow", "Cairn", "Crypt", "Vault", "Maw", "Tomb", "Sepulcher", "Ossuary", "Catacomb", "Grave"] },
+    {
+      name: "burial",
+      words: [
+        "Barrow", "Cairn", "Crypt", "Vault", "Maw", "Tomb", "Sepulcher", "Ossuary", "Catacomb", "Grave",
+        "Mausoleum", "Reliquary", "Bier", "Charnel", "Undertomb", "Gravemound", "Sarcophagus", "Deadhouse", "Ashpit", "Graveyard",
+      ],
+    },
     {
       name: "structures",
-      words: ["Spire", "Gate", "Keep", "Fane", "Throne", "Hold", "Watch", "Sanctum", "Shrine", "Bastion", "Citadel", "Tower"],
+      words: [
+        "Spire", "Gate", "Keep", "Fane", "Throne", "Hold", "Watch", "Sanctum", "Shrine", "Bastion", "Citadel", "Tower",
+        "Temple", "Chapel", "Obelisk", "Monument", "Altar", "Colonnade", "Rotunda", "Parapet",
+      ],
     },
-    { name: "landscape", words: ["Hollow", "Mere", "Reach", "Deep", "Chasm", "Abyss", "Rift", "Pit", "Void", "Trench"] },
+    {
+      name: "landscape",
+      words: [
+        "Hollow", "Mere", "Reach", "Deep", "Chasm", "Abyss", "Rift", "Pit", "Void", "Trench",
+        "Ravine", "Gorge", "Sinkhole", "Crevasse", "Grotto", "Cavern", "Fissure", "Gulf", "Precipice", "Underdepth",
+      ],
+    },
   ],
 };
 
