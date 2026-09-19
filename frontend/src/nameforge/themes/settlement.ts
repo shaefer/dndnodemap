@@ -1,38 +1,67 @@
-import type { Bank, Theme } from "../types";
+import { COLORS, DIRECTIONS, FAUNA, FLORA, LANDSCAPE_DESCRIPTORS, MATERIALS, PERSONAL_NAMES } from "../categories";
+import type { Bank, Theme, WordCategory } from "../types";
 
-// Classic medieval root+suffix compounding ("Ash" + "ford" = "Ashford").
-// Both banks are categorized (M4.14): a category is picked uniformly first,
-// then a word within it, so a small category (e.g. "fauna", 2 words) still
-// gets an equal shot against a larger one (e.g. "flora", 7 words).
+// Classic medieval root+suffix compounding ("Ash" + "ford" = "Ashford"),
+// plus (M4.15) a human-regional possessive pattern ("Devon's Ford") and a
+// plain descriptive two-word pattern ("Northern Bridge") — real cadence
+// variety beyond "every settlement is a fantasy compound."
+//
+// Roots mix shared generic categories (M4.15 — colors/materials/flora/fauna/
+// directions/landscape are reused across many themes, not hand-duplicated)
+// with one settlement-specific category (structures) that doesn't generalize.
+const STRUCTURES: WordCategory = { name: "structures", words: ["Mill", "Wynd", "Bridge", "Hall", "Barrow", "Croft"] };
+
 const ROOTS: Bank = {
-  categories: [
-    { name: "materials", words: ["Iron", "Stone", "Silver", "Amber"] },
-    { name: "colors", words: ["Black", "White", "Grey", "Green"] },
-    { name: "flora", words: ["Ash", "Oak", "Elm", "Bramble", "Hazel", "Thorn", "Briar"] },
-    { name: "fauna", words: ["Raven", "Wolf"] },
-    { name: "landscape", words: ["Fen", "Marsh", "Hollow", "Crest"] },
-    { name: "structures", words: ["Mill", "Wynd"] },
-    { name: "descriptors", words: ["Dusk", "Old", "High", "Long", "Cold", "Storm", "Salt"] },
-  ],
+  categories: [COLORS, MATERIALS, FLORA, FAUNA, DIRECTIONS, LANDSCAPE_DESCRIPTORS, STRUCTURES],
 };
 
-const SUFFIXES: Bank = {
-  categories: [
-    { name: "water features", words: ["ford", "mere", "brook", "reach"] },
-    { name: "fortification", words: ["wall", "burg", "hold", "watch", "march"] },
-    { name: "landform", words: ["hollow", "moor", "crest", "dale"] },
-    { name: "settlement type", words: ["haven", "gate", "wick", "ton", "shire", "stead", "worth"] },
-  ],
+// Stored capitalized (for the possessive pattern: "Devon's Ford"); a
+// lowercased derived copy feeds the compound form ("Ashford") — same
+// approach as _shared.ts's rootSuffixPatterns.
+const SUFFIXES_CATEGORIES: WordCategory[] = [
+  { name: "water features", words: ["Ford", "Mere", "Brook", "Reach", "Ferry", "Weir", "Spring", "Bourne"] },
+  {
+    name: "fortification",
+    words: ["Wall", "Burg", "Hold", "Watch", "March", "Keep", "Bastion", "Garrison", "Rampart"],
+  },
+  { name: "landform", words: ["Hollow", "Moor", "Crest", "Dale", "Ridge", "Hill", "Glen", "Combe"] },
+  {
+    name: "settlement type",
+    words: ["Haven", "Gate", "Wick", "Ton", "Shire", "Stead", "Worth", "Bury", "Ham", "Thorpe", "Don", "Holm"],
+  },
+];
+const SUFFIXES: Bank = { categories: SUFFIXES_CATEGORIES };
+const SUFFIXES_LOWER: Bank = {
+  categories: SUFFIXES_CATEGORIES.map((c) => ({ name: c.name, words: c.words.map((w) => w.toLowerCase()) })),
 };
 
 export const settlementMedieval: Theme = {
   id: "settlementMedieval",
   patterns: [
+    // "Ashford" — the fantasy compound.
     {
-      id: "root-suffix",
+      id: "compound",
       slots: [
         { type: "bank", bank: ROOTS, name: "roots" },
+        { type: "bank", bank: SUFFIXES_LOWER, name: "suffixes" },
+      ],
+    },
+    // "Devon's Ford" — human-regional, a person's name possessing a place.
+    {
+      id: "possessive",
+      slots: [
+        { type: "bank", bank: PERSONAL_NAMES.words, name: "personal names" },
+        { type: "literal", text: "'s " },
         { type: "bank", bank: SUFFIXES, name: "suffixes" },
+      ],
+    },
+    // "Northern Bridge" — a plain descriptive two-word name, not glued.
+    {
+      id: "descriptive",
+      slots: [
+        { type: "bank", bank: DIRECTIONS.words, name: "directions" },
+        { type: "literal", text: " " },
+        { type: "bank", bank: STRUCTURES.words, name: "structures" },
       ],
     },
   ],

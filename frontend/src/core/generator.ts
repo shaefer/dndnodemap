@@ -104,7 +104,17 @@ import { BIOMES } from "./taxonomy";
 // for real cadence variety in map names, not just word variance. Both
 // changes shift the naming pass's rng() sequence for every node and the map
 // name, on every seed.
-export const ALGORITHM_VERSION = "2.6.0";
+// 2.7.0: nameforge word lists consolidated into a shared category library
+// (src/nameforge/categories/ — colors/gems/materials/flora/fauna/directions/
+// descriptors/personal names reused across themes instead of hand-duplicated
+// per theme) and expanded to 8-16 words each; settlementMedieval gained a
+// possessive ("Devon's Ford") and a descriptive ("Northern Bridge") pattern
+// alongside its compound one, and waterFeature gained a descriptive ("The
+// Silver Pool") pattern — every theme now has >= 3. Pattern selection also
+// became weight-proportional (Pattern.weight, default 1) rather than strictly
+// uniform. Bigger banks and more patterns per theme both shift the naming
+// pass's rng() sequence for every seed.
+export const ALGORITHM_VERSION = "2.7.0";
 
 // --- Step 1: node placement ("grid" algorithm) -------------------------------
 

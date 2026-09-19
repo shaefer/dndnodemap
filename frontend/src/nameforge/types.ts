@@ -38,6 +38,12 @@ export type Slot =
 export interface Pattern {
   id: string;
   slots: Slot[];
+  // Relative likelihood this pattern is chosen by generateName, versus the
+  // theme's other patterns — default 1. A pattern with weight 0.3 alongside
+  // others at 1 shows up roughly 0.3/(sum of all weights) of the time, not
+  // 1/patternCount. Lets a theme mark some patterns as deliberately rare/
+  // exotic without a separate probability system.
+  weight?: number;
 }
 
 export interface Theme {

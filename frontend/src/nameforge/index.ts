@@ -14,6 +14,17 @@ import {
 import type { Theme } from "./types";
 
 export type { Bank, GeneratedName, Pattern, Rng, Slot, SyllableChain, Theme, WordCategory } from "./types";
+export {
+  COLORS,
+  DIRECTIONS,
+  FAUNA,
+  FLORA,
+  GEMS,
+  LANDSCAPE_DESCRIPTORS,
+  MATERIALS,
+  NARRATIVE_DESCRIPTORS,
+  PERSONAL_NAMES,
+} from "./categories";
 export { generateFromPattern, generateName, regenerate, rerollSlot } from "./generate";
 export { describePattern, describeSlot, listWordLists, type NamedWordList } from "./inspect";
 export { rootSuffixPatterns, rootSuffixTheme, type RootSuffixLabels } from "./themes/_shared";

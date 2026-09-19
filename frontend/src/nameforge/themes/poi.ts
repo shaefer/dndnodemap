@@ -1,15 +1,18 @@
+import { COLORS, NARRATIVE_DESCRIPTORS } from "../categories";
 import type { Bank, Theme } from "../types";
 import { rootSuffixPatterns } from "./_shared";
 
 // Dark/mysterious flavor for ruins, dungeons, lairs, and landmarks.
-// Both banks are categorized (M4.14) — see themes/region.ts for the full
-// rationale on category-weighted picking.
+// M4.15: reuses shared narrativeDescriptors/colors categories alongside a
+// poi-specific "ominous" one, and both noun categories expanded to 10-12.
 const ADJECTIVES: Bank = {
   categories: [
-    { name: "decay", words: ["Sunken", "Broken", "Shattered", "Drowned", "Forgotten", "Forsaken"] },
-    { name: "somber", words: ["Silent", "Weeping", "Whispering", "Hollow", "Old"] },
-    { name: "ominous", words: ["Wraith", "Gloom", "Cursed"] },
-    { name: "elemental", words: ["Ashen", "Bone", "Ember", "Black", "Blackened", "Grey"] },
+    NARRATIVE_DESCRIPTORS,
+    {
+      name: "ominous",
+      words: ["Wraith", "Gloom", "Ashen", "Bone", "Ember", "Blackened", "Ghastly", "Spectral", "Baleful", "Eldritch"],
+    },
+    COLORS,
   ],
 };
 
@@ -18,9 +21,12 @@ const ADJECTIVES: Bank = {
 // data — see _shared.ts's rootSuffixPatterns.
 const NOUNS: Bank = {
   categories: [
-    { name: "burial", words: ["Barrow", "Cairn", "Crypt", "Vault", "Maw"] },
-    { name: "structures", words: ["Spire", "Gate", "Keep", "Fane", "Throne", "Hold", "Watch"] },
-    { name: "landscape", words: ["Hollow", "Mere", "Reach", "Deep"] },
+    { name: "burial", words: ["Barrow", "Cairn", "Crypt", "Vault", "Maw", "Tomb", "Sepulcher", "Ossuary", "Catacomb", "Grave"] },
+    {
+      name: "structures",
+      words: ["Spire", "Gate", "Keep", "Fane", "Throne", "Hold", "Watch", "Sanctum", "Shrine", "Bastion", "Citadel", "Tower"],
+    },
+    { name: "landscape", words: ["Hollow", "Mere", "Reach", "Deep", "Chasm", "Abyss", "Rift", "Pit", "Void", "Trench"] },
   ],
 };
 

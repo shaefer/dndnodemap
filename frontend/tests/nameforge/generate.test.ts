@@ -42,6 +42,53 @@ function fixedRng(seed: number): () => number {
   };
 }
 
+describe("pattern weighting (M4.15)", () => {
+  it("picks a low-weight pattern proportionally less often than a default-weight one", () => {
+    const theme: Theme = {
+      id: "testWeighted",
+      patterns: [
+        { id: "common", weight: 1, slots: [{ type: "literal", text: "common" }] },
+        { id: "rare", weight: 0.2, slots: [{ type: "literal", text: "rare" }] },
+      ],
+    };
+    const rng = makeRng(1);
+    const N = 5000;
+    let commonCount = 0;
+    let rareCount = 0;
+    for (let i = 0; i < N; i++) {
+      const id = generateName(theme, rng).patternId;
+      if (id === "common") commonCount++;
+      else rareCount++;
+    }
+    // Expected share: common 1/1.2 ≈ 0.833, rare 0.2/1.2 ≈ 0.167 — assert
+    // observed shares land close to that, not the 50/50 a uniform pick
+    // would give.
+    const rareShare = rareCount / N;
+    expect(rareShare).toBeGreaterThan(0.1);
+    expect(rareShare).toBeLessThan(0.24);
+    expect(commonCount).toBeGreaterThan(rareCount * 3);
+  });
+
+  it("patterns with no weight set behave exactly as before (uniform)", () => {
+    const theme: Theme = {
+      id: "testUnweighted",
+      patterns: [
+        { id: "a", slots: [{ type: "literal", text: "a" }] },
+        { id: "b", slots: [{ type: "literal", text: "b" }] },
+      ],
+    };
+    const rng = makeRng(2);
+    const N = 4000;
+    let aCount = 0;
+    for (let i = 0; i < N; i++) {
+      if (generateName(theme, rng).patternId === "a") aCount++;
+    }
+    const share = aCount / N;
+    expect(share).toBeGreaterThan(0.4);
+    expect(share).toBeLessThan(0.6);
+  });
+});
+
 describe("generateName", () => {
   it("is deterministic — the same rng sequence produces the same name", () => {
     for (const theme of ALL_THEMES) {
@@ -83,7 +130,7 @@ describe("category-weighted bank picking (M4.14)", () => {
     const rng = makeRng(1);
     const N = 5000;
     for (let i = 0; i < N; i++) {
-      const root = generateFromPattern(settlementMedieval, "root-suffix", rng).parts[0];
+      const root = generateFromPattern(settlementMedieval, "compound", rng).parts[0];
       const category = categories.find((c) => c.words.includes(root));
       expect(category).toBeDefined();
       counts.set(category!.name, counts.get(category!.name)! + 1);
@@ -97,25 +144,28 @@ describe("category-weighted bank picking (M4.14)", () => {
     }
   });
 
-  it("a 2-word category is not swamped by a 7-word category in the same bank", () => {
+  it("a small category is not swamped by a much larger category in the same bank", () => {
+    // settlementMedieval's "roots" bank mixes shared 15-16-word categories
+    // (colors, materials, flora, fauna, directions, landscape descriptors)
+    // with one small theme-specific category ("structures", 6 words) — a
+    // real, current size disparity to prove the property against.
     const categories = listWordLists(settlementMedieval).filter((l) => l.parent === "roots");
-    const fauna = categories.find((c) => c.name === "fauna")!;
-    const flora = categories.find((c) => c.name === "flora")!;
-    expect(fauna.words.length).toBe(2);
-    expect(flora.words.length).toBe(7);
+    const structures = categories.find((c) => c.name === "structures")!;
+    const colors = categories.find((c) => c.name === "colors")!;
+    expect(structures.words.length).toBeLessThan(colors.words.length / 2);
 
-    let faunaCount = 0;
-    let floraCount = 0;
+    let structuresCount = 0;
+    let colorsCount = 0;
     const rng = makeRng(2);
     const N = 5000;
     for (let i = 0; i < N; i++) {
-      const root = generateFromPattern(settlementMedieval, "root-suffix", rng).parts[0];
-      if (fauna.words.includes(root)) faunaCount++;
-      if (flora.words.includes(root)) floraCount++;
+      const root = generateFromPattern(settlementMedieval, "compound", rng).parts[0];
+      if (structures.words.includes(root)) structuresCount++;
+      if (colors.words.includes(root)) colorsCount++;
     }
-    // Proportional-to-size would give flora ~3.5x fauna's count; category
-    // weighting should keep them within a much smaller ratio of each other.
-    const ratio = floraCount / faunaCount;
+    // Proportional-to-size would give colors ~2.5x+ structures's count;
+    // category weighting should keep them within a much smaller ratio.
+    const ratio = colorsCount / structuresCount;
     expect(ratio).toBeLessThan(2);
   });
 });
@@ -134,8 +184,8 @@ describe("generateFromPattern", () => {
   });
 
   it("is deterministic for the same rng sequence", () => {
-    const a = generateFromPattern(settlementMedieval, "root-suffix", fixedRng(11));
-    const b = generateFromPattern(settlementMedieval, "root-suffix", fixedRng(11));
+    const a = generateFromPattern(settlementMedieval, "compound", fixedRng(11));
+    const b = generateFromPattern(settlementMedieval, "compound", fixedRng(11));
     expect(a).toEqual(b);
   });
 

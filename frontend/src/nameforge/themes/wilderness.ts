@@ -1,91 +1,94 @@
+import { COLORS, FLORA, MATERIALS } from "../categories";
 import type { Bank, Theme } from "../types";
 import { rootSuffixTheme } from "./_shared";
 
-// One root+suffix theme per Biome value, each with its own thematic word
-// set. Both banks are categorized (M4.14) — see themes/region.ts for the
-// full rationale on category-weighted picking. rootSuffixTheme handles
-// deriving the lowercase compound form from the capitalized suffix bank.
+// One root+suffix theme per Biome value (M4.15: categories expanded to
+// 8-16 words each, reusing shared generic categories — colors/flora/
+// materials/landscape — where they fit, alongside biome-specific categories
+// that don't generalize). rootSuffixTheme derives the lowercase compound
+// form from the capitalized suffix bank automatically.
 
 const FOREST_ROOTS: Bank = {
   categories: [
-    { name: "flora", words: ["Oak", "Elm", "Birch", "Willow", "Bramble", "Ash", "Fern", "Moss"] },
-    { name: "colors", words: ["Green", "Silver", "Amber", "Grey"] },
-    { name: "descriptors", words: ["Thorn", "Shadow", "Wild"] },
+    FLORA,
+    COLORS,
+    { name: "forest descriptors", words: ["Thorn", "Shadow", "Wild", "Dappled", "Sylvan", "Primeval", "Quiet", "Deep"] },
   ],
 };
 const FOREST_SUFFIXES: Bank = {
   categories: [
-    { name: "woodland", words: ["Wood", "Glen", "Grove", "Thicket", "Glade"] },
-    { name: "open land", words: ["Vale", "Wilds", "Hollow", "Heath"] },
+    { name: "woodland", words: ["Wood", "Glen", "Grove", "Thicket", "Glade", "Copse", "Dell", "Timberland", "Woodland"] },
+    { name: "open land", words: ["Vale", "Wilds", "Hollow", "Heath", "Meadow", "Clearing", "Barrens", "Range"] },
   ],
 };
 
 const SWAMP_ROOTS: Bank = {
   categories: [
-    { name: "terrain", words: ["Bog", "Mire", "Fen", "Murk"] },
-    { name: "flora", words: ["Reed", "Rush"] },
-    { name: "descriptors", words: ["Rot", "Still", "Grey", "Black"] },
+    { name: "terrain", words: ["Bog", "Mire", "Fen", "Murk", "Slough", "Quagmire", "Morass", "Backwater"] },
+    { name: "swamp flora", words: ["Reed", "Rush", "Cattail", "Cypress", "Duckweed", "Moss", "Lily", "Willow"] },
+    COLORS,
+    { name: "swamp descriptors", words: ["Rot", "Still", "Dank", "Fetid", "Murky", "Sodden", "Clammy", "Rank"] },
   ],
 };
 const SWAMP_SUFFIXES: Bank = {
   categories: [
-    { name: "wetland", words: ["Marsh", "Fen", "Mire", "Bog"] },
-    { name: "water and land", words: ["Flats", "Hollow", "Mere", "Reach"] },
+    { name: "wetland", words: ["Marsh", "Fen", "Mire", "Bog", "Bayou", "Slough", "Bottoms", "Sump"] },
+    { name: "water and land", words: ["Flats", "Hollow", "Mere", "Reach", "Shallows", "Wallow", "Bottom", "Basin"] },
   ],
 };
 
 const DESERT_ROOTS: Bank = {
   categories: [
-    { name: "terrain", words: ["Sand", "Dune", "Dust"] },
-    { name: "elemental", words: ["Sun", "Scorch", "Ember"] },
-    { name: "materials", words: ["Amber", "Bone", "Glass", "Copper"] },
+    { name: "terrain", words: ["Sand", "Dune", "Dust", "Grit", "Wastes", "Basalt", "Silt", "Erg"] },
+    { name: "elemental", words: ["Sun", "Scorch", "Ember", "Blaze", "Mirage", "Heat", "Solar", "Cinder"] },
+    MATERIALS,
   ],
 };
 const DESERT_SUFFIXES: Bank = {
   categories: [
-    { name: "expanse", words: ["Wastes", "Expanse", "Reach"] },
-    { name: "landform", words: ["Dunes", "Flats", "Sands", "Basin"] },
+    { name: "expanse", words: ["Wastes", "Expanse", "Reach", "Barrens", "Emptiness", "Void", "Drift", "Span"] },
+    { name: "landform", words: ["Dunes", "Flats", "Sands", "Basin", "Mesa", "Canyon", "Plateau", "Wadi"] },
   ],
 };
 
 const TUNDRA_ROOTS: Bank = {
   categories: [
-    { name: "ice and cold", words: ["Frost", "Rime", "Snow", "Ice"] },
-    { name: "colors", words: ["Pale", "Grey", "White"] },
-    { name: "descriptors", words: ["Wind", "Stone", "North"] },
+    { name: "ice and cold", words: ["Frost", "Rime", "Snow", "Ice", "Glacier", "Sleet", "Hoarfrost", "Permafrost"] },
+    COLORS,
+    { name: "tundra descriptors", words: ["Wind", "Stone", "North", "Bleak", "Grim", "Numb", "Bitter", "Barren"] },
   ],
 };
 const TUNDRA_SUFFIXES: Bank = {
   categories: [
-    { name: "landform", words: ["Moor", "Ridge", "Fell", "Hollow"] },
-    { name: "expanse", words: ["Waste", "Reach", "Expanse"] },
+    { name: "landform", words: ["Moor", "Ridge", "Fell", "Hollow", "Tundra", "Barrens", "Steppe", "Plateau"] },
+    { name: "expanse", words: ["Waste", "Reach", "Expanse", "Wilderness", "Flatland", "Span", "Drift", "Void"] },
   ],
 };
 
 const JUNGLE_ROOTS: Bank = {
   categories: [
-    { name: "flora", words: ["Vine", "Canopy", "Fern", "Moss"] },
-    { name: "colors", words: ["Emerald", "Verdant", "Green", "Bright"] },
-    { name: "descriptors", words: ["Wild", "Deep"] },
+    { name: "jungle flora", words: ["Vine", "Canopy", "Fern", "Liana", "Orchid", "Palm", "Bamboo", "Moss"] },
+    { name: "jungle descriptors", words: ["Wild", "Deep", "Bright", "Lush", "Humid", "Dense", "Sweltering", "Teeming"] },
+    COLORS,
   ],
 };
 const JUNGLE_SUFFIXES: Bank = {
   categories: [
-    { name: "dense growth", words: ["Thicket", "Tangle", "Canopy", "Grove"] },
-    { name: "open and other", words: ["Wilds", "Reach", "Hollow"] },
+    { name: "dense growth", words: ["Thicket", "Tangle", "Canopy", "Grove", "Undergrowth", "Bramble", "Overgrowth", "Snarl"] },
+    { name: "open and other", words: ["Wilds", "Reach", "Hollow", "Basin", "Delta", "Falls", "Springs", "Verge"] },
   ],
 };
 
 const PLAINS_ROOTS: Bank = {
   categories: [
-    { name: "descriptors", words: ["Wide", "Long", "Open", "High", "Far", "Windswept"] },
-    { name: "colors and light", words: ["Golden", "Sunlit", "Amber", "Fair"] },
+    { name: "plains descriptors", words: ["Wide", "Long", "Open", "High", "Far", "Windswept", "Rolling", "Endless"] },
+    { name: "colors and light", words: ["Golden", "Sunlit", "Amber", "Fair", "Bright", "Radiant", "Gleaming", "Honeyed"] },
   ],
 };
 const PLAINS_SUFFIXES: Bank = {
   categories: [
-    { name: "open land", words: ["Plain", "Fields", "Veldt"] },
-    { name: "expanse", words: ["Reach", "Expanse", "Run", "Way"] },
+    { name: "open land", words: ["Plain", "Fields", "Veldt", "Prairie", "Grassland", "Steppe", "Savanna", "Range"] },
+    { name: "expanse", words: ["Reach", "Expanse", "Run", "Way", "Sweep", "Span", "Vale", "Flatland"] },
   ],
 };
 
@@ -100,35 +103,37 @@ export const wildernessPlains: Theme = rootSuffixTheme("wildernessPlains", PLAIN
 // waterfall/delta) — inspired by the old core/names.ts WATER_FEATURE_NAMES
 // pool (Miller's Ford, Glasswater Pond style), rebuilt as a composable theme.
 // Bespoke (not rootSuffixTheme) since the possessive form ("Miller's Ford")
-// needs its own connector, distinct from the plain compound form.
+// needs its own connector, distinct from the plain compound and (M4.15)
+// descriptive two-word forms.
 const WATER_POSSESSIVE_ROOTS: Bank = {
   categories: [
-    { name: "occupations", words: ["Miller", "Fisher", "Cooper", "Tanner", "Weaver"] },
-    { name: "other", words: ["Otter", "Widow"] },
+    {
+      name: "occupations",
+      words: ["Miller", "Fisher", "Cooper", "Tanner", "Weaver", "Potter", "Mason", "Shepherd", "Falconer", "Piper"],
+    },
+    { name: "other", words: ["Otter", "Widow", "Hunter", "Wanderer", "Traveler"] },
   ],
 };
 const WATER_PLAIN_ROOTS: Bank = {
   categories: [
-    { name: "materials", words: ["Glass", "Silver", "Stone", "Cinder"] },
-    { name: "flora", words: ["Thistle", "Willow", "Reed"] },
-    { name: "descriptors", words: ["Hush", "Still", "Moon"] },
+    MATERIALS,
+    FLORA,
+    { name: "calm descriptors", words: ["Hush", "Still", "Moon", "Quiet", "Calm", "Glimmer", "Placid", "Silent"] },
   ],
 };
-const WATER_SUFFIXES: Bank = {
-  categories: [
-    { name: "water bodies", words: ["Pond", "Mere", "Pool", "Spring"] },
-    { name: "water crossing", words: ["Ford", "Falls", "Crossing", "Run"] },
-  ],
-};
-// Lowercased once here (a flat categorized-bank helper isn't warranted for
-// just this one pattern) — mirrors _shared.ts's lowerBank approach.
+const WATER_SUFFIXES_CATEGORIES = [
+  { name: "water bodies", words: ["Pond", "Mere", "Pool", "Spring", "Lagoon", "Basin", "Cove", "Shallows"] },
+  { name: "water crossing", words: ["Ford", "Falls", "Crossing", "Run", "Weir", "Landing", "Passage", "Narrows"] },
+];
+const WATER_SUFFIXES: Bank = { categories: WATER_SUFFIXES_CATEGORIES };
 const WATER_SUFFIXES_LOWER: Bank = {
-  categories: WATER_SUFFIXES.categories.map((c) => ({ name: c.name, words: c.words.map((w) => w.toLowerCase()) })),
+  categories: WATER_SUFFIXES_CATEGORIES.map((c) => ({ name: c.name, words: c.words.map((w) => w.toLowerCase()) })),
 };
 
 export const waterFeature: Theme = {
   id: "waterFeature",
   patterns: [
+    // "Miller's Ford" — possessive.
     {
       id: "possessive",
       slots: [
@@ -137,11 +142,22 @@ export const waterFeature: Theme = {
         { type: "bank", bank: WATER_SUFFIXES, name: "suffixes" },
       ],
     },
+    // "Glassmere" — compound.
     {
       id: "compound",
       slots: [
         { type: "bank", bank: WATER_PLAIN_ROOTS, name: "roots" },
         { type: "bank", bank: WATER_SUFFIXES_LOWER, name: "suffixes" },
+      ],
+    },
+    // "The Silver Pool" — descriptive two-word (M4.15).
+    {
+      id: "descriptive",
+      slots: [
+        { type: "literal", text: "The " },
+        { type: "bank", bank: WATER_PLAIN_ROOTS, name: "roots" },
+        { type: "literal", text: " " },
+        { type: "bank", bank: WATER_SUFFIXES, name: "suffixes" },
       ],
     },
   ],

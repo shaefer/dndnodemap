@@ -4,6 +4,18 @@ function pick<T>(arr: readonly T[], rng: Rng): T {
   return arr[Math.floor(rng() * arr.length)];
 }
 
+// Picks a pattern proportional to its weight (default 1 when unset) rather
+// than uniformly — the mechanism behind marking a pattern rare/exotic.
+function pickPattern(patterns: readonly Pattern[], rng: Rng): Pattern {
+  const total = patterns.reduce((sum, p) => sum + (p.weight ?? 1), 0);
+  let roll = rng() * total;
+  for (const p of patterns) {
+    roll -= p.weight ?? 1;
+    if (roll < 0) return p;
+  }
+  return patterns[patterns.length - 1];
+}
+
 // A flat bank picks one word uniformly. A categorized bank picks a category
 // uniformly first, then a word uniformly within it — two draws instead of
 // one, so a large category never dominates a small one.
@@ -45,7 +57,7 @@ function findPattern(theme: Theme, patternId: string): Pattern | undefined {
 // Picks a random pattern from the theme and renders every slot — a brand new
 // name, structure included.
 export function generateName(theme: Theme, rng: Rng = Math.random): GeneratedName {
-  return renderPattern(theme.id, pick(theme.patterns, rng), rng);
+  return renderPattern(theme.id, pickPattern(theme.patterns, rng), rng);
 }
 
 // Generates from a specific, caller-chosen pattern rather than a random one —
@@ -61,7 +73,7 @@ export function generateFromPattern(theme: Theme, patternId: string, rng: Rng = 
 // Keeps the same pattern (same "shape") as an existing generated name, but
 // redraws every slot — same style, new words.
 export function regenerate(theme: Theme, generated: GeneratedName, rng: Rng = Math.random): GeneratedName {
-  const pattern = findPattern(theme, generated.patternId) ?? pick(theme.patterns, rng);
+  const pattern = findPattern(theme, generated.patternId) ?? pickPattern(theme.patterns, rng);
   return renderPattern(theme.id, pattern, rng);
 }
 

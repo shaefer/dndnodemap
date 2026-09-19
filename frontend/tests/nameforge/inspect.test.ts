@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ALL_THEMES } from "../../src/nameforge";
+import { COLORS } from "../../src/nameforge/categories";
 import { describePattern, describeSlot, listWordLists } from "../../src/nameforge/inspect";
 import { poiFanciful } from "../../src/nameforge/themes/poi";
+import { regionName } from "../../src/nameforge/themes/region";
 import { settlementMedieval } from "../../src/nameforge/themes/settlement";
 import { elvishSyllable } from "../../src/nameforge/themes/syllable";
 import { waterFeature, wildernessForest } from "../../src/nameforge/themes/wilderness";
@@ -100,5 +102,38 @@ describe("listWordLists", () => {
     const lists = listWordLists(wildernessForest);
     const roots = lists.find((l) => l.name === "roots" && l.parent === undefined)!;
     expect(roots.words).toContain("Oak");
+  });
+
+  it("a shared category reports identical contents wherever it's reused (M4.15)", () => {
+    // COLORS is the same object in settlementMedieval's and regionName's
+    // root banks — the whole point of the shared category library is that
+    // these can't silently drift apart into near-duplicate lists.
+    const settlementColors = listWordLists(settlementMedieval).find((l) => l.name === "colors")!;
+    const regionColors = listWordLists(regionName).find((l) => l.name === "colors")!;
+    expect(settlementColors.words).toEqual(COLORS.words);
+    expect(regionColors.words).toEqual(COLORS.words);
+  });
+
+  it("every category in every theme now has real depth (M4.15)", () => {
+    for (const theme of ALL_THEMES) {
+      for (const list of listWordLists(theme)) {
+        // Sub-categories should be meaningfully sized; aggregates are larger
+        // by construction. A handful of deliberately-small theme-specific
+        // categories (e.g. settlement "structures") sit at 5+.
+        expect(list.words.length, `${theme.id} / ${list.name}`).toBeGreaterThanOrEqual(5);
+      }
+    }
+  });
+});
+
+describe("pattern counts (M4.15)", () => {
+  it("every theme has at least 3 patterns", () => {
+    for (const theme of ALL_THEMES) {
+      // elvishSyllable is the one deliberate exception — it's a
+      // demonstration of the syllable-chain mechanism, and gets its full
+      // pattern treatment when the race themes land (M4.16).
+      if (theme.id === "elvishSyllable") continue;
+      expect(theme.patterns.length, `${theme.id} pattern count`).toBeGreaterThanOrEqual(3);
+    }
   });
 });
