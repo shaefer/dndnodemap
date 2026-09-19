@@ -18,8 +18,8 @@ import type { Bank, Theme, WordCategory } from "../types";
 // cadence variety beyond "every settlement is a fantasy compound."
 //
 // Roots mix shared generic categories (M4.15 — colors/materials/flora/fauna/
-// directions/landscape are reused across many themes, not hand-duplicated)
-// with one settlement-specific category (structures) that doesn't generalize.
+// landscape are reused across many themes, not hand-duplicated) with one
+// settlement-specific category (structures) that doesn't generalize.
 const STRUCTURES: WordCategory = {
   name: "structures",
   words: [
@@ -29,8 +29,16 @@ const STRUCTURES: WordCategory = {
   ],
 };
 
+// Deliberately excludes DIRECTIONS (M4.16.2) — a multi-syllable modifier
+// word like "Northeastern"/"Windward" is meant to precede a noun with a
+// space ("Northern Bridge," the descriptive pattern below), not glue onto a
+// suffix with none ("Northeasternford"). That mismatch was the single
+// biggest source of the compound pattern producing names that "don't really
+// work" — most of the other categories here glue fine (real English
+// toponyms compound colors/materials/flora/fauna/landscape words onto place
+// suffixes all the time; directions don't).
 const ROOTS: Bank = {
-  categories: [COLORS, MATERIALS, FLORA, FAUNA, DIRECTIONS, LANDSCAPE_DESCRIPTORS, STRUCTURES],
+  categories: [COLORS, MATERIALS, FLORA, FAUNA, LANDSCAPE_DESCRIPTORS, STRUCTURES],
 };
 
 // Stored capitalized (for the possessive pattern: "Devon's Ford"); a
@@ -68,9 +76,14 @@ const SUFFIXES_CATEGORIES: WordCategory[] = [
   },
   {
     name: "settlement type",
+    // No "Ham"/"Toft"/"Stow"/"Ness" (M4.16.2) — flagged as too obscure next
+    // to the more recognizable Old-English-toponym suffixes this category
+    // otherwise favors; "Village"/"Town" added as plainly-readable anchors.
+    // "Don"/"By"/"Thwaite"/"Garth" are similarly obscure and worth a look in
+    // a future curation pass, but weren't named explicitly, so left as-is.
     words: [
-      "Haven", "Gate", "Wick", "Ton", "Shire", "Stead", "Worth", "Bury", "Ham", "Thorpe", "Don", "Holm",
-      "Field", "Well", "Cross", "Wood", "Minster", "Chester", "By", "Thwaite", "Garth", "Toft", "Stow", "Ness",
+      "Haven", "Gate", "Wick", "Ton", "Shire", "Stead", "Worth", "Bury", "Thorpe", "Don", "Holm",
+      "Field", "Well", "Cross", "Wood", "Minster", "Chester", "By", "Thwaite", "Garth", "Village", "Town",
     ],
   },
 ];

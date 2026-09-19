@@ -34,9 +34,10 @@ export const GEMS: WordCategory = {
 export const MATERIALS: WordCategory = {
   name: "materials",
   words: [
+    // No "Chalk" (M4.16.2) — read as too plain/off-tone next to its siblings.
     "Iron", "Stone", "Bronze", "Copper", "Steel", "Granite", "Marble",
     "Bone", "Glass", "Clay", "Brass", "Lead", "Flint", "Slate", "Tin",
-    "Silver", "Gold", "Basalt", "Alabaster", "Chalk", "Rust", "Ivory",
+    "Silver", "Gold", "Basalt", "Alabaster", "Rust", "Ivory",
   ],
 };
 
@@ -47,7 +48,8 @@ export const FLORA: WordCategory = {
     "Thorn", "Briar", "Cedar", "Pine", "Maple", "Holly", "Ivy", "Reed",
     // No "Heather" — it stem-collides with wildernessForest's "Heath" suffix
     // ("Heatherheath") once FLORA is used as that theme's root bank.
-    "Hazel", "Yew", "Alder", "Rowan", "Nettle", "Larch", "Sorrel", "Clover",
+    // No "Larch"/"Sorrel" (M4.16.2) — flagged as too obscure/off-tone.
+    "Hazel", "Yew", "Alder", "Rowan", "Nettle", "Clover",
   ],
 };
 
@@ -56,10 +58,11 @@ export const FLORA: WordCategory = {
 export const FAUNA: WordCategory = {
   name: "fauna",
   words: [
+    // No "Kite"/"Vixen"/"Ermine" (M4.16.2) — flagged as too obscure/off-tone.
     "Raven", "Wolf", "Otter", "Fox", "Hawk", "Stag", "Bear", "Owl",
     "Falcon", "Lynx", "Boar", "Heron", "Crow", "Badger", "Serpent", "Eagle",
-    "Elk", "Bison", "Vole", "Weasel", "Marten", "Kite", "Osprey", "Adder",
-    "Grouse", "Ferret", "Vixen", "Ermine", "Kestrel", "Viper",
+    "Elk", "Bison", "Vole", "Weasel", "Marten", "Osprey", "Adder",
+    "Grouse", "Ferret", "Kestrel", "Viper",
   ],
 };
 
@@ -90,9 +93,13 @@ export const DIRECTIONS: WordCategory = {
 export const LANDSCAPE_DESCRIPTORS: WordCategory = {
   name: "landscape descriptors",
   words: [
+    // No hyphenated entries — this category feeds compound patterns that
+    // glue a root directly onto a suffix with no separator ("Wind-carved"
+    // used to render as "Wind-carvedford"). "Windworn" replaces the old
+    // hyphenated "Wind-carved" (M4.16.2).
     "Shattered", "Hollow", "Sunken", "Storm", "Wild", "Winter", "Broken", "Craggy",
     "Rolling", "Windswept", "Misty", "Frozen", "Scorched", "Barren", "Weathered",
-    "Jagged", "Sheer", "Overgrown", "Sodden", "Sunlit", "Wind-carved", "Stony",
+    "Jagged", "Sheer", "Overgrown", "Sodden", "Sunlit", "Windworn", "Stony",
   ],
 };
 

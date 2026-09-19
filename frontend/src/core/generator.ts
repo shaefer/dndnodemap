@@ -127,7 +127,20 @@ import { BIOMES } from "./taxonomy";
 // expanded and gained a fourth pattern (native-of-epithet), but race themes
 // still aren't wired into generateMap() (that's M4.17), so they don't factor
 // into this bump.
-export const ALGORITHM_VERSION = "2.8.0";
+// 2.8.1 (M4.16.2): word-list quality cleanup, not expansion — removed a
+// handful of words flagged as too obscure/off-tone (FAUNA's "Kite"/"Vixen"/
+// "Ermine", FLORA's "Larch"/"Sorrel", MATERIALS' "Chalk", settlementMedieval's
+// "settlement type" suffix category's "Ham"/"Toft"/"Stow"/"Ness", replaced
+// with plainer "Village"/"Town"), fixed a real bug (LANDSCAPE_DESCRIPTORS'
+// hyphenated "Wind-carved" rendered as "Wind-carvedford" once glued into a
+// compound — replaced with "Windworn"), and excluded DIRECTIONS from
+// settlementMedieval's compound-pattern roots (a multi-syllable modifier like
+// "Northeastern" reads fine before a space-separated noun but not glued onto
+// a suffix with none — this was the single biggest source of the compound
+// pattern's "doesn't really work" output). Smaller/reshuffled banks shift
+// which word a given rng() draw resolves to, so this is a real output change
+// for every existing seed even though nothing here is a new capability.
+export const ALGORITHM_VERSION = "2.8.1";
 
 // --- Step 1: node placement ("grid" algorithm) -------------------------------
 
