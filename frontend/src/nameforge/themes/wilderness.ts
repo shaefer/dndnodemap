@@ -12,7 +12,7 @@ const FOREST_ROOTS: Bank = {
   categories: [
     FLORA,
     COLORS,
-    { name: "forest descriptors", words: ["Thorn", "Shadow", "Wild", "Dappled", "Sylvan", "Primeval", "Quiet", "Deep"] },
+    { name: "forest descriptors", words: ["Thorn", "Shadow", "Feral", "Dappled", "Sylvan", "Primeval", "Quiet", "Deep"] },
   ],
 };
 const FOREST_SUFFIXES: Bank = {
@@ -24,7 +24,10 @@ const FOREST_SUFFIXES: Bank = {
 
 const SWAMP_ROOTS: Bank = {
   categories: [
-    { name: "terrain", words: ["Bog", "Mire", "Fen", "Murk", "Slough", "Quagmire", "Morass", "Backwater"] },
+    // Deliberately avoids Bog/Mire/Fen/Slough — those are swamp *place*
+    // words, and this theme's suffix bank already owns them; a word on both
+    // sides would let the compound pattern render "Bogbog".
+    { name: "terrain", words: ["Peat", "Sludge", "Muskeg", "Murk", "Silt", "Quagmire", "Morass", "Backwater"] },
     { name: "swamp flora", words: ["Reed", "Rush", "Cattail", "Cypress", "Duckweed", "Moss", "Lily", "Willow"] },
     COLORS,
     { name: "swamp descriptors", words: ["Rot", "Still", "Dank", "Fetid", "Murky", "Sodden", "Clammy", "Rank"] },
@@ -39,7 +42,7 @@ const SWAMP_SUFFIXES: Bank = {
 
 const DESERT_ROOTS: Bank = {
   categories: [
-    { name: "terrain", words: ["Sand", "Dune", "Dust", "Grit", "Wastes", "Basalt", "Silt", "Erg"] },
+    { name: "terrain", words: ["Scour", "Barchan", "Dust", "Grit", "Hardpan", "Basalt", "Silt", "Erg"] },
     { name: "elemental", words: ["Sun", "Scorch", "Ember", "Blaze", "Mirage", "Heat", "Solar", "Cinder"] },
     MATERIALS,
   ],
@@ -55,7 +58,7 @@ const TUNDRA_ROOTS: Bank = {
   categories: [
     { name: "ice and cold", words: ["Frost", "Rime", "Snow", "Ice", "Glacier", "Sleet", "Hoarfrost", "Permafrost"] },
     COLORS,
-    { name: "tundra descriptors", words: ["Wind", "Stone", "North", "Bleak", "Grim", "Numb", "Bitter", "Barren"] },
+    { name: "tundra descriptors", words: ["Wind", "Stone", "North", "Bleak", "Grim", "Numb", "Bitter", "Stark"] },
   ],
 };
 const TUNDRA_SUFFIXES: Bank = {
@@ -67,8 +70,9 @@ const TUNDRA_SUFFIXES: Bank = {
 
 const JUNGLE_ROOTS: Bank = {
   categories: [
-    { name: "jungle flora", words: ["Vine", "Canopy", "Fern", "Liana", "Orchid", "Palm", "Bamboo", "Moss"] },
-    { name: "jungle descriptors", words: ["Wild", "Deep", "Bright", "Lush", "Humid", "Dense", "Sweltering", "Teeming"] },
+    // "Canopy" lives in this theme's suffix bank, so it stays out of the roots.
+    { name: "jungle flora", words: ["Vine", "Frond", "Fern", "Liana", "Orchid", "Palm", "Bamboo", "Moss"] },
+    { name: "jungle descriptors", words: ["Rampant", "Deep", "Bright", "Lush", "Humid", "Dense", "Sweltering", "Teeming"] },
     COLORS,
   ],
 };

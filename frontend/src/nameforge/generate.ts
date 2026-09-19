@@ -24,14 +24,38 @@ function pickFromBank(bank: Bank, rng: Rng): string {
   return pick(bank, rng);
 }
 
+// Concatenating syllables regularly lands the same letter on both sides of a
+// join — "Dill" + "ly" -> "Dillly", "Sess" + "sha" -> "Sesssha", "Zar" +
+// "aa" + "aal" -> "Zaraaaal". Doubles read as deliberate; triples and longer
+// read as typos, so any run of 3+ identical letters collapses back to 2.
+// Boundary syllables survive intact (a run only ever shrinks to two), so a
+// chain still starts with one of its start syllables and ends with one of
+// its end syllables.
+function collapseLetterRuns(s: string): string {
+  return s.replace(/(.)\1{2,}/gi, "$1$1");
+}
+
+// Drawing the same syllable twice in a row stutters — "Ghyl"+"uun"+"uun"+
+// "uun", "Kriv"+"iss"+"iss". Excluding the previous syllable from the pool
+// costs no extra rng() draws (one pick either way) and never starves: the
+// filter is skipped if it would empty the pool.
+function pickAvoiding(pool: readonly string[], previous: string | null, rng: Rng): string {
+  const options = previous === null ? pool : pool.filter((s) => s !== previous);
+  return pick(options.length > 0 ? options : pool, rng);
+}
+
 function renderSyllableChain(chain: SyllableChain, rng: Rng): string {
   const min = chain.minMiddle ?? 0;
   const max = chain.maxMiddle ?? 1;
   const count = min + Math.floor(rng() * (max - min + 1));
   let s = pick(chain.start, rng);
-  for (let i = 0; i < count; i++) s += pick(chain.middle, rng);
-  s += pick(chain.end, rng);
-  return s;
+  let previous: string | null = null;
+  for (let i = 0; i < count; i++) {
+    previous = pickAvoiding(chain.middle, previous, rng);
+    s += previous;
+  }
+  s += pickAvoiding(chain.end, previous, rng);
+  return collapseLetterRuns(s);
 }
 
 function renderSlot(slot: Slot, rng: Rng): string {

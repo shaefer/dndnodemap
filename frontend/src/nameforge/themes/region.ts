@@ -16,7 +16,9 @@ const NOUNS: Bank = {
   categories: [
     {
       name: "landform nouns",
-      words: ["Vale", "Moor", "Fen", "Weald", "Downs", "Highlands", "Lowlands", "Dell", "Basin", "Plateau", "Hollow"],
+      // No "Hollow" — it's in the shared LANDSCAPE_DESCRIPTORS these names
+      // draw their roots from, which would yield "The Hollow Hollow".
+      words: ["Vale", "Moor", "Fen", "Weald", "Downs", "Uplands", "Bottomlands", "Dell", "Basin", "Plateau", "Heath"],
     },
     {
       name: "political nouns",
@@ -24,7 +26,7 @@ const NOUNS: Bank = {
     },
     {
       name: "boundary nouns",
-      words: ["Marches", "Frontier", "Reaches", "Expanse", "Wilds", "Borderlands", "Fringes", "Outlands", "Hinterlands", "Edgelands"],
+      words: ["Marches", "Frontier", "Reaches", "Expanse", "Verges", "Borderlands", "Fringes", "Outlands", "Hinterlands", "Edgelands"],
     },
   ],
 };

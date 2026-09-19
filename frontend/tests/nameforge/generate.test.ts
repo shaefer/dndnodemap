@@ -5,7 +5,7 @@ import { listWordLists } from "../../src/nameforge/inspect";
 import { poiFanciful } from "../../src/nameforge/themes/poi";
 import { regionName } from "../../src/nameforge/themes/region";
 import { settlementMedieval } from "../../src/nameforge/themes/settlement";
-import { elvishSyllable } from "../../src/nameforge/themes/syllable";
+import { elvish } from "../../src/nameforge/themes/races/classic";
 import {
   waterFeature,
   wildernessDesert,
@@ -28,7 +28,7 @@ const ALL_THEMES: Theme[] = [
   wildernessPlains,
   waterFeature,
   regionName,
-  elvishSyllable,
+  elvish,
 ];
 
 // A tiny deterministic sequence generator for tests — cycles through a fixed
@@ -221,13 +221,16 @@ describe("rerollSlot", () => {
   });
 });
 
-describe("syllableChain slots (elvishSyllable)", () => {
+describe("syllableChain slots (elvish)", () => {
   it("respects minMiddle/maxMiddle bounds across many draws", () => {
-    const chain = elvishSyllable.patterns[0].slots[0];
+    const chain = elvish.patterns[0].slots[0];
     if (chain.type !== "syllableChain") throw new Error("expected a syllableChain slot");
     const { start, end } = chain.chain;
     for (let seed = 0; seed < 100; seed++) {
-      const name = generateName(elvishSyllable, fixedRng(seed));
+      // Specifically the "native" pattern — since M4.16 gave elvish the
+      // full three-cadence race template, generateName would also roll its
+      // compound and native-of patterns, which aren't pure syllable chains.
+      const name = generateFromPattern(elvish, "native", fixedRng(seed));
       // Every generated name must start with one of the start syllables and
       // end with one of the end syllables (middles are variable-length, so
       // this is the checkable invariant rather than an exact length).

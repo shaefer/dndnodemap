@@ -5,7 +5,7 @@ import { describePattern, describeSlot, listWordLists } from "../../src/nameforg
 import { poiFanciful } from "../../src/nameforge/themes/poi";
 import { regionName } from "../../src/nameforge/themes/region";
 import { settlementMedieval } from "../../src/nameforge/themes/settlement";
-import { elvishSyllable } from "../../src/nameforge/themes/syllable";
+import { elvish } from "../../src/nameforge/themes/races/classic";
 import { waterFeature, wildernessForest } from "../../src/nameforge/themes/wilderness";
 import type { Slot } from "../../src/nameforge/types";
 
@@ -38,7 +38,7 @@ describe("describePattern", () => {
   });
 
   it("produces a non-empty description for every pattern in every theme", () => {
-    for (const theme of [settlementMedieval, poiFanciful, elvishSyllable]) {
+    for (const theme of [settlementMedieval, poiFanciful, elvish]) {
       for (const pattern of theme.patterns) {
         expect(describePattern(pattern).length).toBeGreaterThan(0);
       }
@@ -85,9 +85,12 @@ describe("listWordLists", () => {
   });
 
   it("exposes a syllableChain's start/middle/end pools as separate named lists", () => {
-    const lists = listWordLists(elvishSyllable);
-    expect(lists.map((l) => l.name).sort()).toEqual(["end", "middle", "start"]);
-    for (const l of lists) expect(l.words.length).toBeGreaterThan(0);
+    // elvish is a full race theme since M4.16 — syllable pools *and* the
+    // root/suffix banks its compound pattern uses — so assert the chain
+    // pools are present rather than that they're the only entries.
+    const names = listWordLists(elvish).map((l) => l.name);
+    for (const pool of ["start", "middle", "end"]) expect(names).toContain(pool);
+    for (const l of listWordLists(elvish)) expect(l.words.length).toBeGreaterThan(0);
   });
 
   it("produces at least one non-empty word list for every registered theme", () => {
@@ -127,12 +130,11 @@ describe("listWordLists", () => {
 });
 
 describe("pattern counts (M4.15)", () => {
-  it("every theme has at least 3 patterns", () => {
+  it("every theme has at least 3 patterns — no exceptions", () => {
+    // elvish was the one holdout through M4.15 (a single-pattern
+    // syllable-chain demonstration); M4.16 rebuilt it as a full race theme,
+    // so the rule now holds universally.
     for (const theme of ALL_THEMES) {
-      // elvishSyllable is the one deliberate exception — it's a
-      // demonstration of the syllable-chain mechanism, and gets its full
-      // pattern treatment when the race themes land (M4.16).
-      if (theme.id === "elvishSyllable") continue;
       expect(theme.patterns.length, `${theme.id} pattern count`).toBeGreaterThanOrEqual(3);
     }
   });

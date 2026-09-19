@@ -24,7 +24,10 @@ const SUFFIXES_CATEGORIES: WordCategory[] = [
     name: "fortification",
     words: ["Wall", "Burg", "Hold", "Watch", "March", "Keep", "Bastion", "Garrison", "Rampart"],
   },
-  { name: "landform", words: ["Hollow", "Moor", "Crest", "Dale", "Ridge", "Hill", "Glen", "Combe"] },
+  // No "Hollow" here on purpose — it's already in the shared
+  // LANDSCAPE_DESCRIPTORS category these names draw their roots from, and a
+  // word on both sides lets the compound pattern render "Hollowhollow".
+  { name: "landform", words: ["Hurst", "Moor", "Crest", "Dale", "Ridge", "Hill", "Glen", "Combe"] },
   {
     name: "settlement type",
     words: ["Haven", "Gate", "Wick", "Ton", "Shire", "Stead", "Worth", "Bury", "Ham", "Thorpe", "Don", "Holm"],
