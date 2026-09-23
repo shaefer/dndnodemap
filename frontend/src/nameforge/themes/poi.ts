@@ -26,16 +26,18 @@ const ADJECTIVES: Bank = {
 const NOUNS: Bank = {
   categories: [
     {
+      // No "Bier" (M4.16.3) — obscure, "a stand a corpse/coffin rests on."
       name: "burial",
       words: [
         "Barrow", "Cairn", "Crypt", "Vault", "Maw", "Tomb", "Sepulcher", "Ossuary", "Catacomb", "Grave",
-        "Mausoleum", "Reliquary", "Bier", "Charnel", "Undertomb", "Gravemound", "Sarcophagus", "Deadhouse", "Ashpit", "Graveyard",
+        "Mausoleum", "Reliquary", "Charnel", "Undertomb", "Gravemound", "Sarcophagus", "Deadhouse", "Ashpit", "Graveyard",
       ],
     },
     {
+      // No "Fane" (M4.16.3) — archaic word for "temple," obscure standalone.
       name: "structures",
       words: [
-        "Spire", "Gate", "Keep", "Fane", "Throne", "Hold", "Watch", "Sanctum", "Shrine", "Bastion", "Citadel", "Tower",
+        "Spire", "Gate", "Keep", "Throne", "Hold", "Watch", "Sanctum", "Shrine", "Bastion", "Citadel", "Tower",
         "Temple", "Chapel", "Obelisk", "Monument", "Altar", "Colonnade", "Rotunda", "Parapet",
       ],
     },

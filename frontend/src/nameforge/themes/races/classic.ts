@@ -25,10 +25,12 @@ export const dwarvish: Theme = raceTheme({
       ],
     },
     {
+      // No "Subterranean" (M4.16.3) — reads as clinical/modern-scientific
+      // next to "Sunless"/"Warren"/"Gloom," a tonal mismatch.
       name: "depths",
       words: [
         "Sunless", "Under", "Warren", "Vein", "Lode", "Gloom", "Echo", "Ore", "Hollow", "Root",
-        "Cavern", "Abyssal", "Bedrock", "Underdark", "Chasm", "Fissure", "Crevice", "Subterranean",
+        "Cavern", "Abyssal", "Bedrock", "Underdark", "Chasm", "Fissure", "Crevice",
       ],
     },
     MATERIALS,
@@ -42,11 +44,11 @@ export const dwarvish: Theme = raceTheme({
       ],
     },
     {
+      // No "Adit"/"Drift"/"Digging"/"Excavation" (M4.16.3) — obscure
+      // mining-engineering jargon, or process nouns that read oddly as a
+      // place-name suffix.
       name: "workings",
-      words: [
-        "Mine", "Shaft", "Seam", "Barrow", "Foundry", "Anvil", "Kiln", "Crucible",
-        "Quarry", "Smithy", "Workshop", "Digging", "Excavation", "Drift", "Gallery", "Adit",
-      ],
+      words: ["Mine", "Shaft", "Seam", "Barrow", "Foundry", "Anvil", "Kiln", "Crucible", "Quarry", "Smithy", "Workshop", "Gallery"],
     },
   ),
 });
@@ -79,9 +81,10 @@ export const elvish: Theme = raceTheme({
       ],
     },
     {
+      // No "Rill" (M4.16.3) — obscure, "a small stream."
       name: "grace",
       words: [
-        "Lyric", "Silver", "Mist", "Grace", "Whisper", "Echo", "Silk", "Dream", "Rill", "Lament",
+        "Lyric", "Silver", "Mist", "Grace", "Whisper", "Echo", "Silk", "Dream", "Lament",
         "Melody", "Harmony", "Elegance", "Serenity", "Wonder", "Rapture", "Sorrow", "Solace",
       ],
     },
@@ -146,10 +149,13 @@ export const halfling: Theme = raceTheme({
       ],
     },
     {
+      // No "Pantry Row" (M4.16.3, bug) — contained a literal space, which
+      // once lowercased and glued into the compound pattern rendered as
+      // e.g. "honeypantry row." The category already has "Larder."
       name: "halfling commons",
       words: [
         "Meadow", "Orchard", "Garden", "Green", "Crossing", "Mill", "Market", "Rest",
-        "Faire", "Common", "Square", "Bakery", "Brewery", "Pantry Row", "Teahouse", "Larder",
+        "Faire", "Common", "Square", "Bakery", "Brewery", "Teahouse", "Larder",
       ],
     },
   ),
@@ -181,11 +187,10 @@ export const gnomish: Theme = raceTheme({
       ],
     },
     {
+      // No "Ironmongery" (M4.16.3) — obscure British term for a
+      // hardware/metal-goods shop.
       name: "gnomish metals",
-      words: [
-        "Copper", "Brass", "Tin", "Solder", "Alloy", "Filament", "Wire", "Pewter",
-        "Steelwork", "Bronzework", "Ironmongery", "Nickel", "Chrome", "Tinplate",
-      ],
+      words: ["Copper", "Brass", "Tin", "Solder", "Alloy", "Filament", "Wire", "Pewter", "Steelwork", "Bronzework", "Nickel", "Chrome", "Tinplate"],
     },
   ),
   suffixes: cats(
@@ -197,10 +202,14 @@ export const gnomish: Theme = raceTheme({
       ],
     },
     {
+      // No "Workshop Row" (M4.16.3, bug) — contained a literal space, which
+      // once lowercased and glued into the compound pattern rendered as a
+      // broken multi-word result. The category already has "Works"/
+      // "Laboratory."
       name: "gnomish works",
       words: [
         "Cogs", "Spire", "Works", "Forge", "Bench", "Foundry", "Lab", "Yard",
-        "Laboratory", "Workshop Row", "Arcade", "Emporium", "Assembly", "Institute", "Academy", "Guildhouse",
+        "Laboratory", "Arcade", "Emporium", "Assembly", "Institute", "Academy", "Guildhouse",
       ],
     },
   ),

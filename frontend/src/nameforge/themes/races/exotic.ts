@@ -35,10 +35,12 @@ export const aasimar: Theme = raceTheme({
   ),
   suffixes: cats(
     {
+      // No "Sacristy" (M4.16.3) — obscure ecclesiastical term for the room
+      // where vestments are kept.
       name: "celestial places",
       words: [
         "Spire", "Sanctum", "Haven", "Ascent", "Choir", "Gate", "Vigil", "Beacon", "Reliquary", "Altar",
-        "Cathedral", "Chantry", "Shrine", "Basilica", "Chapel", "Vestibule", "Nave", "Sacristy",
+        "Cathedral", "Chantry", "Shrine", "Basilica", "Chapel", "Vestibule", "Nave",
       ],
     },
     {

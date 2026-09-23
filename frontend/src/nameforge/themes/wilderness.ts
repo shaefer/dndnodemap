@@ -24,18 +24,17 @@ const FOREST_ROOTS: Bank = {
 const FOREST_SUFFIXES: Bank = {
   categories: [
     {
+      // M4.16.3: removed Coppice/Spinney/Boscage/Weald/Holt/Chase/Frith —
+      // obscure forestry/regional-dialect terms almost nobody would
+      // recognize as meaning "a wood."
       name: "woodland",
-      words: [
-        "Wood", "Glen", "Grove", "Thicket", "Glade", "Copse", "Dell", "Timberland", "Woodland",
-        "Coppice", "Bower", "Spinney", "Underwood", "Boscage", "Weald", "Holt", "Chase", "Frith",
-      ],
+      words: ["Wood", "Glen", "Grove", "Thicket", "Glade", "Copse", "Dell", "Timberland", "Woodland", "Bower", "Underwood"],
     },
     {
+      // M4.16.3: removed Lea/Croft/Glebe/Sward — obscure poetic/dialectal
+      // words for "meadow"/"field."
       name: "open land",
-      words: [
-        "Vale", "Wilds", "Hollow", "Heath", "Meadow", "Clearing", "Barrens", "Range",
-        "Common", "Lea", "Down", "Croft", "Fallow", "Pasture", "Glebe", "Sward",
-      ],
+      words: ["Vale", "Wilds", "Hollow", "Heath", "Meadow", "Clearing", "Barrens", "Range", "Common", "Down", "Fallow", "Pasture"],
     },
   ],
 };
@@ -72,8 +71,10 @@ const SWAMP_ROOTS: Bank = {
 const SWAMP_SUFFIXES: Bank = {
   categories: [
     {
+      // M4.16.3: removed Slough/Sump/Swale/Carr/Fosse/Holm — obscure
+      // technical-ecology/dialect/military terms.
       name: "wetland",
-      words: ["Marsh", "Fen", "Mire", "Bog", "Bayou", "Slough", "Bottoms", "Sump", "Swale", "Carr", "Wash", "Bottomland", "Fosse", "Weir", "Holm", "Sink"],
+      words: ["Marsh", "Fen", "Mire", "Bog", "Bayou", "Bottoms", "Wash", "Bottomland", "Weir", "Sink"],
     },
     {
       name: "water and land",
@@ -88,11 +89,10 @@ const SWAMP_SUFFIXES: Bank = {
 const DESERT_ROOTS: Bank = {
   categories: [
     {
+      // M4.16.3: removed Barchan/Hardpan/Erg/Alluvium/Loess/Talus — pure
+      // geology-textbook jargon most readers won't recognize at all.
       name: "terrain",
-      words: [
-        "Scour", "Barchan", "Dust", "Grit", "Hardpan", "Basalt", "Silt", "Erg",
-        "Rubble", "Talus", "Gravel", "Shale", "Alluvium", "Loess", "Caldera", "Redrock",
-      ],
+      words: ["Scour", "Dust", "Grit", "Basalt", "Silt", "Rubble", "Gravel", "Shale", "Caldera", "Redrock"],
     },
     {
       name: "elemental",
@@ -114,11 +114,10 @@ const DESERT_SUFFIXES: Bank = {
       ],
     },
     {
+      // M4.16.3: removed Wadi/Playa — Arabic/Spanish geology loanwords,
+      // obscure outside a desert-game context specifically.
       name: "landform",
-      words: [
-        "Dunes", "Flats", "Sands", "Basin", "Mesa", "Canyon", "Plateau", "Wadi",
-        "Butte", "Escarpment", "Playa", "Badlands", "Oasis", "Ridge", "Outcrop", "Gulch",
-      ],
+      words: ["Dunes", "Flats", "Sands", "Basin", "Mesa", "Canyon", "Plateau", "Butte", "Escarpment", "Badlands", "Oasis", "Ridge", "Outcrop", "Gulch"],
     },
   ],
 };
@@ -145,11 +144,10 @@ const TUNDRA_ROOTS: Bank = {
 const TUNDRA_SUFFIXES: Bank = {
   categories: [
     {
+      // M4.16.3: removed Moraine/Cirque/Col — glacial-geology/mountaineering
+      // jargon.
       name: "landform",
-      words: [
-        "Moor", "Ridge", "Fell", "Hollow", "Tundra", "Barrens", "Steppe", "Plateau",
-        "Highland", "Crag", "Bluff", "Escarpment", "Moraine", "Cirque", "Col", "Saddle",
-      ],
+      words: ["Moor", "Ridge", "Fell", "Hollow", "Tundra", "Barrens", "Steppe", "Plateau", "Highland", "Crag", "Bluff", "Escarpment", "Saddle"],
     },
     {
       name: "expanse",
@@ -184,10 +182,12 @@ const JUNGLE_ROOTS: Bank = {
 const JUNGLE_SUFFIXES: Bank = {
   categories: [
     {
+      // No "Thickset" (M4.16.3) — normally describes a person's build, not
+      // a place; odd fit as a suffix.
       name: "dense growth",
       words: [
         "Thicket", "Tangle", "Canopy", "Grove", "Undergrowth", "Bramble", "Overgrowth", "Snarl",
-        "Jungle", "Wilderness", "Thickset", "Brush", "Copse", "Bower", "Understory", "Bracken",
+        "Jungle", "Wilderness", "Brush", "Copse", "Bower", "Understory", "Bracken",
       ],
     },
     {
@@ -221,10 +221,13 @@ const PLAINS_ROOTS: Bank = {
 const PLAINS_SUFFIXES: Bank = {
   categories: [
     {
+      // No "Furlong"/"Croft" (M4.16.3) — an archaic unit of measurement and
+      // an obscure dialect word don't fit as a place suffix as cleanly as
+      // "Veldt"/"Acreage," which were kept.
       name: "open land",
       words: [
         "Plain", "Fields", "Veldt", "Prairie", "Grassland", "Steppe", "Savanna", "Range",
-        "Meadowland", "Pasture", "Downs", "Flatland", "Common", "Croft", "Furlong", "Acreage",
+        "Meadowland", "Pasture", "Downs", "Flatland", "Common", "Acreage",
       ],
     },
     {
@@ -280,17 +283,18 @@ const WATER_PLAIN_ROOTS: Bank = {
 };
 const WATER_SUFFIXES_CATEGORIES = [
   {
+    // M4.16.3: removed Lochan (obscure Gaelic loanword), Slough (unclear how
+    // to even pronounce), and Puddle (not obscure, just tonally too small).
     name: "water bodies",
-    words: [
-      "Pond", "Mere", "Pool", "Spring", "Lagoon", "Basin", "Cove", "Shallows",
-      "Tarn", "Lochan", "Backwater", "Millpond", "Puddle", "Fen", "Slough", "Eddy",
-    ],
+    words: ["Pond", "Mere", "Pool", "Spring", "Lagoon", "Basin", "Cove", "Shallows", "Tarn", "Backwater", "Millpond", "Fen", "Eddy"],
   },
   {
+    // No "Cataract" (M4.16.3) — homograph risk (reads as the eye condition
+    // before "waterfall").
     name: "water crossing",
     words: [
       "Ford", "Falls", "Crossing", "Run", "Weir", "Landing", "Passage", "Narrows",
-      "Rapids", "Cataract", "Channel", "Causeway", "Bridge", "Wharf", "Jetty", "Quay",
+      "Rapids", "Channel", "Causeway", "Bridge", "Wharf", "Jetty", "Quay",
     ],
   },
 ];

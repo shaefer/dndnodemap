@@ -140,7 +140,21 @@ import { BIOMES } from "./taxonomy";
 // pattern's "doesn't really work" output). Smaller/reshuffled banks shift
 // which word a given rng() draw resolves to, so this is a real output change
 // for every existing seed even though nothing here is a new capability.
-export const ALGORITHM_VERSION = "2.8.1";
+// 2.8.2 (M4.16.3): a full human-led curation pass — the user reviewed every
+// candidate from a generated cleanup-review checklist (docs/word-list-
+// cleanup-candidates.md) and marked which obscure/archaic-medieval/jargon
+// words to keep; everything left unmarked was removed. Touches settlement's
+// water-features/fortification/landform/settlement-type suffixes, region's
+// landform nouns, every wilderness biome's roots/suffixes, poi's burial/
+// structures nouns, and (no version-bump relevance, but fixed alongside)
+// two race themes' word lists plus two literal-embedded-space bugs
+// (halfling's "Pantry Row", gnomish's "Workshop Row" — same defect class as
+// 2.8.1's "Wind-carved" hyphen). Categories were allowed to shrink rather
+// than backfilled to a target size — a smaller, all-recognizable list beats
+// a padded one. Smaller/reshuffled banks in the already-wired themes shift
+// which word a given rng() draw resolves to, a real output change for every
+// existing seed.
+export const ALGORITHM_VERSION = "2.8.2";
 
 // --- Step 1: node placement ("grid" algorithm) -------------------------------
 

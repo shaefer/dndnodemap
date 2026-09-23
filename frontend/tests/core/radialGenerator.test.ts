@@ -119,7 +119,7 @@ describe("generateMap (radial)", () => {
 
   it("sets the current algorithm version", () => {
     const map = generateMap(RADIAL_PARAMS);
-    expect(map.algorithmVersion).toBe("2.8.1");
+    expect(map.algorithmVersion).toBe("2.8.2");
   });
 
   it("does not prefer continuing straight through a node (regression — the M4.8 bug)", () => {

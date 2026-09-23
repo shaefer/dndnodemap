@@ -18,7 +18,8 @@ const NOUNS: Bank = {
       name: "landform nouns",
       // No "Hollow" — it's in the shared LANDSCAPE_DESCRIPTORS these names
       // draw their roots from, which would yield "The Hollow Hollow".
-      words: ["Vale", "Moor", "Fen", "Weald", "Downs", "Uplands", "Bottomlands", "Dell", "Basin", "Plateau", "Heath"],
+      // No "Weald" (M4.16.3) — obscure archaic word for wooded upland.
+      words: ["Vale", "Moor", "Fen", "Downs", "Uplands", "Bottomlands", "Dell", "Basin", "Plateau", "Heath"],
     },
     {
       name: "political nouns",

@@ -223,17 +223,20 @@ export const giant: Theme = raceTheme({
       ],
     },
     {
+      // No "Scarp" (M4.16.3) — obscure short form of "escarpment."
       name: "mountain",
       words: [
         "Mountain", "Boulder", "Peak", "Bluff", "Cliff", "Scree", "Rime", "Glacier", "Frost", "Stone",
-        "Avalanche", "Talus", "Precipice", "Highland", "Alpine", "Scarp", "Moraine", "Escarpment",
+        "Avalanche", "Talus", "Precipice", "Highland", "Alpine", "Moraine", "Escarpment",
       ],
     },
     {
+      // No "Behemothic" (M4.16.3) — not a real word, an awkwardly invented
+      // adjective form of "Behemoth."
       name: "titans",
       words: [
         "Titan", "Elder", "Great", "Vast", "Mighty", "Colossal", "Ancient", "Towering", "Immense", "Hoary",
-        "Gargantuan", "Primordial", "Behemothic", "Monolithic", "Enormous", "Stalwart", "Venerable", "Boundless",
+        "Gargantuan", "Primordial", "Monolithic", "Enormous", "Stalwart", "Venerable", "Boundless",
       ],
     },
   ),
@@ -274,17 +277,20 @@ export const illithid: Theme = raceTheme({
       ],
     },
     {
+      // No "Gestalt" (M4.16.3) — psychology/philosophy jargon, reads as
+      // out-of-place modern rather than alien.
       name: "the colony",
       words: [
         "Elder", "Thrall", "Brine", "Spawn", "Tadpole", "Cerebral", "Cephal", "Brood", "Larval", "Ganglion",
-        "Gestalt", "Progenitor", "Symbiont", "Parasitic", "Colonial", "Umbilical", "Gestation", "Metamorphic",
+        "Progenitor", "Symbiont", "Parasitic", "Colonial", "Umbilical", "Gestation", "Metamorphic",
       ],
     },
     {
+      // No "Benthic" (M4.16.3) — marine-biology jargon.
       name: "the deeps",
       words: [
         "Nether", "Void", "Sunless", "Abyssal", "Fathom", "Lightless", "Drowned", "Buried", "Silent", "Cold",
-        "Submerged", "Crushing", "Benthic", "Uncharted", "Pressurized", "Bottomless", "Frigid", "Vast",
+        "Submerged", "Crushing", "Uncharted", "Pressurized", "Bottomless", "Frigid", "Vast",
       ],
     },
   ),
@@ -348,9 +354,11 @@ export const beholder: Theme = raceTheme({
       ],
     },
     {
+      // No "Demesne" (M4.16.3) — obscure feudal-legal term for land under a
+      // lord's direct control.
       name: "beholder domains",
       words: [
-        "Dominion", "Demesne", "Gallery", "Oculus", "Vantage", "Reach", "Perch", "Chamber",
+        "Dominion", "Gallery", "Oculus", "Vantage", "Reach", "Perch", "Chamber",
         "Territory", "Realm", "Province", "Expanse", "Purview", "Jurisdiction", "Hegemony", "Dynasty",
       ],
     },

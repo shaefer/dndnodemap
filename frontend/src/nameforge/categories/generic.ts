@@ -58,10 +58,11 @@ export const FLORA: WordCategory = {
 export const FAUNA: WordCategory = {
   name: "fauna",
   words: [
-    // No "Kite"/"Vixen"/"Ermine" (M4.16.2) — flagged as too obscure/off-tone.
+    // No "Kite"/"Vixen"/"Ermine" (M4.16.2), no "Vole"/"Marten"/"Adder"
+    // (M4.16.3) — flagged as too obscure/off-tone.
     "Raven", "Wolf", "Otter", "Fox", "Hawk", "Stag", "Bear", "Owl",
     "Falcon", "Lynx", "Boar", "Heron", "Crow", "Badger", "Serpent", "Eagle",
-    "Elk", "Bison", "Vole", "Weasel", "Marten", "Osprey", "Adder",
+    "Elk", "Bison", "Weasel", "Osprey",
     "Grouse", "Ferret", "Kestrel", "Viper",
   ],
 };
@@ -130,13 +131,18 @@ export const EPITHETS: WordCategory = {
 // this bank doesn't repeat noticeably faster than the others it sits next to.
 export const PERSONAL_NAMES: WordCategory = {
   name: "personal names",
+  // No "Leofric"/"Aelfric"/"Hereward"/"Thurstan"/"Osbert"/"Fulk"/"Idony"/
+  // "Avelina" (M4.16.3) — genuinely authentic Anglo-Saxon names, but too
+  // obscure to read as names at all today, unlike the ones kept here
+  // (either still-common names, or ones that ring a bell via Ivanhoe/
+  // Arthurian legend/Reynard the Fox).
   words: [
     "Devon", "Edmund", "William", "Robert", "Alice", "Edith", "Godwin", "Aldric",
-    "Wulfric", "Beatrice", "Osric", "Leofric", "Mildred", "Cedric", "Harold", "Rowena",
+    "Wulfric", "Beatrice", "Osric", "Mildred", "Cedric", "Harold", "Rowena",
     "Alfred", "Matilda", "Godfrey", "Eleanor", "Baldwin", "Isolde", "Reynard", "Adelaide",
-    "Wystan", "Cordelia", "Aelfric", "Guinevere", "Bertram", "Rosalind", "Dunstan", "Winifred",
-    "Everard", "Constance", "Hereward", "Emmeline", "Thurstan", "Millicent", "Aldous", "Genevieve",
-    "Wilfred", "Cicely", "Randolph", "Marguerite", "Ansel", "Idony", "Fulk", "Avelina",
-    "Osbert", "Bertha",
+    "Wystan", "Cordelia", "Guinevere", "Bertram", "Rosalind", "Dunstan", "Winifred",
+    "Everard", "Constance", "Emmeline", "Millicent", "Aldous", "Genevieve",
+    "Wilfred", "Cicely", "Randolph", "Marguerite", "Ansel",
+    "Bertha",
   ],
 };

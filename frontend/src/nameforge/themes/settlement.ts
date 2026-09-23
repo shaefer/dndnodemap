@@ -47,18 +47,20 @@ const ROOTS: Bank = {
 const SUFFIXES_CATEGORIES: WordCategory[] = [
   {
     name: "water features",
-    words: [
-      "Ford", "Mere", "Brook", "Reach", "Ferry", "Weir", "Spring", "Bourne",
-      "Wash", "Rill", "Beck", "Burn", "Firth", "Sound", "Strand", "Race",
-      "Lade", "Sluice", "Fleet", "Tarn",
-    ],
+    // M4.16.3: removed the archaic-dialect/homograph-risk entries flagged in
+    // the human curation pass (Bourne, Rill, Beck, Firth, Lade, Sluice,
+    // Fleet, Race, Sound) — a smaller, all-recognizable list beats a larger
+    // one full of words nobody would guess mean "a water feature."
+    words: ["Ford", "Mere", "Brook", "Reach", "Ferry", "Weir", "Spring", "Wash", "Burn", "Strand", "Tarn"],
   },
   {
     name: "fortification",
+    // M4.16.3: removed Redoubt/Barbican/Motte/Bailey (obscure
+    // military-architecture jargon) and March (homograph risk with the
+    // month/verb).
     words: [
-      "Wall", "Burg", "Hold", "Watch", "March", "Keep", "Bastion", "Garrison", "Rampart",
-      "Redoubt", "Bulwark", "Citadel", "Stockade", "Palisade", "Barbican", "Turret", "Fortress", "Battlement",
-      "Motte", "Bailey",
+      "Wall", "Burg", "Hold", "Watch", "Keep", "Bastion", "Garrison", "Rampart",
+      "Bulwark", "Citadel", "Stockade", "Palisade", "Turret", "Fortress", "Battlement",
     ],
   },
   // No "Hollow" here on purpose — it's already in the shared
@@ -68,22 +70,19 @@ const SUFFIXES_CATEGORIES: WordCategory[] = [
     name: "landform",
     // No "Scar" (collides with COLORS' "Scarlet") and no "Crag" (collides
     // with LANDSCAPE_DESCRIPTORS' "Craggy") — both roots this bank sits next
-    // to in the compound pattern.
-    words: [
-      "Hurst", "Moor", "Crest", "Dale", "Ridge", "Hill", "Glen", "Combe", "Fell", "Knoll",
-      "Bluff", "Cleeve", "Tor", "Brae", "Holt", "Weald", "Vale", "Dell", "Heath", "Cwm",
-    ],
+    // to in the compound pattern. M4.16.3: removed Hurst/Combe/Cleeve/Brae/
+    // Holt/Weald/Cwm (obscure regional-dialect/foreign-loanword terms).
+    words: ["Moor", "Crest", "Dale", "Ridge", "Hill", "Glen", "Fell", "Knoll", "Bluff", "Tor", "Vale", "Dell", "Heath"],
   },
   {
     name: "settlement type",
-    // No "Ham"/"Toft"/"Stow"/"Ness" (M4.16.2) — flagged as too obscure next
-    // to the more recognizable Old-English-toponym suffixes this category
-    // otherwise favors; "Village"/"Town" added as plainly-readable anchors.
-    // "Don"/"By"/"Thwaite"/"Garth" are similarly obscure and worth a look in
-    // a future curation pass, but weren't named explicitly, so left as-is.
+    // No "Ham"/"Toft"/"Stow"/"Ness" (M4.16.2), no "Don"/"By"/"Thwaite"/
+    // "Garth"/"Holm" (M4.16.3) — all flagged as too obscure next to the more
+    // recognizable Old-English-toponym suffixes this category otherwise
+    // favors; "Village"/"Town" (M4.16.2) are the plainly-readable anchors.
     words: [
-      "Haven", "Gate", "Wick", "Ton", "Shire", "Stead", "Worth", "Bury", "Thorpe", "Don", "Holm",
-      "Field", "Well", "Cross", "Wood", "Minster", "Chester", "By", "Thwaite", "Garth", "Village", "Town",
+      "Haven", "Gate", "Wick", "Ton", "Shire", "Stead", "Worth", "Bury", "Thorpe",
+      "Field", "Well", "Cross", "Wood", "Minster", "Chester", "Village", "Town",
     ],
   },
 ];
