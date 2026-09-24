@@ -12,6 +12,14 @@ const ROOTS: Bank = {
   categories: [COLORS, GEMS, MATERIALS, LANDSCAPE_DESCRIPTORS, NARRATIVE_DESCRIPTORS, DIRECTIONS],
 };
 
+// For the "compound" pattern only (M4.16.4) — excludes DIRECTIONS, mirroring
+// settlementMedieval's M4.16.2 fix. A multi-syllable modifier like
+// "Northeastern" reads fine before a space-separated noun (ROOTS is used
+// that way in "the-root-noun" below) but not glued onto a suffix with no
+// separator ("Northeasternrun") — sampled review output caught exactly this
+// once the same fix was validated on settlement.
+const COMPOUND_ROOTS: Bank = { categories: [COLORS, GEMS, MATERIALS, LANDSCAPE_DESCRIPTORS, NARRATIVE_DESCRIPTORS] };
+
 const NOUNS: Bank = {
   categories: [
     {
@@ -50,8 +58,10 @@ const COMPOUND_SUFFIXES = [
 // For the embedded compound name in "nested-of" only — excludes
 // NARRATIVE_DESCRIPTORS, which that same pattern also uses directly for its
 // leading descriptor slot, so the two can never coincidentally draw the
-// identical word ("The Moor of Dark Darkhold").
-const EMBEDDED_ROOTS: Bank = { categories: [COLORS, GEMS, MATERIALS, LANDSCAPE_DESCRIPTORS, DIRECTIONS] };
+// identical word ("The Moor of Dark Darkhold"). Also excludes DIRECTIONS
+// (M4.16.4) for the same gluing reason as COMPOUND_ROOTS above — this slot
+// glues directly onto COMPOUND_SUFFIXES with no separator too.
+const EMBEDDED_ROOTS: Bank = { categories: [COLORS, GEMS, MATERIALS, LANDSCAPE_DESCRIPTORS] };
 
 export const regionName: Theme = {
   id: "regionName",
@@ -60,7 +70,7 @@ export const regionName: Theme = {
     {
       id: "compound",
       slots: [
-        { type: "bank", bank: ROOTS, name: "roots" },
+        { type: "bank", bank: COMPOUND_ROOTS, name: "roots" },
         { type: "bank", bank: COMPOUND_SUFFIXES, name: "compound suffixes" },
       ],
     },

@@ -61,7 +61,12 @@ describe("race themes (M4.16)", () => {
     // a theme-wide check produces false positives there. Syllable-chain
     // slots are skipped: they're rendered by concatenating pool entries
     // directly, not picked-and-compared against a sibling bank slot, so
-    // this check doesn't apply to them.
+    // this check doesn't apply to them. An empty string (the "" half of a
+    // `["", "The "]` optional-prefix bank — see _shared.ts's
+    // rootSuffixPatterns, M4.16.4) is skipped too: it's a deliberate
+    // "contribute nothing" choice, not a word, and `"".startsWith(...)`/
+    // `x.startsWith("")` being trivially true would otherwise flag every
+    // real word next to it as a false-positive collision.
     for (const theme of ALL_THEMES) {
       for (const pattern of theme.patterns) {
         const bankSlots = pattern.slots.filter((s): s is Extract<Slot, { type: "bank" }> => s.type === "bank");
@@ -71,7 +76,9 @@ describe("race themes (M4.16)", () => {
             const wordsA = bankWords(bankSlots[i].bank);
             const wordsB = bankWords(bankSlots[j].bank);
             for (const a of wordsA) {
+              if (a === "") continue;
               for (const b of wordsB) {
+                if (b === "") continue;
                 const la = a.toLowerCase();
                 const lb = b.toLowerCase();
                 if (la === lb || la.startsWith(lb) || lb.startsWith(la)) collisions.push(`${a}+${b}`);

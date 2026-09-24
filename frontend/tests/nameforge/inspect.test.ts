@@ -122,7 +122,11 @@ describe("listWordLists", () => {
       for (const list of listWordLists(theme)) {
         // Sub-categories should be meaningfully sized; aggregates are larger
         // by construction. A handful of deliberately-small theme-specific
-        // categories (e.g. settlement "structures") sit at 5+.
+        // categories (e.g. settlement "structures") sit at 5+. The one
+        // deliberate exception is "the (optional)" (M4.16.4) — a 2-entry
+        // `["", "The "]` bank that's a structural coin-flip, not vocabulary,
+        // so the depth rule doesn't apply to it.
+        if (list.name === "the (optional)") continue;
         expect(list.words.length, `${theme.id} / ${list.name}`).toBeGreaterThanOrEqual(5);
       }
     }
@@ -130,12 +134,32 @@ describe("listWordLists", () => {
 });
 
 describe("pattern counts (M4.15)", () => {
-  it("every theme has at least 3 patterns — no exceptions", () => {
+  // The seven themes built from _shared.ts's rootSuffixPatterns (poiFanciful
+  // + the six wilderness biomes) dropped to a single pattern in M4.16.4,
+  // in two steps: "two-word" and "the-two-word" merged into one (a reviewer
+  // pointed out that "with or without a leading 'The'" wasn't a genuinely
+  // different pattern shape, just a stylistic coin-flip — the same "a
+  // category isn't a pattern" lesson M4.14 already established, extended
+  // one step further; the leading "The " is now a `["", "The "]` bank
+  // pick), and the glued "compound" pattern was dropped entirely after
+  // review concluded it didn't add value for these themes specifically —
+  // unlike settlement's suffixes (real bound place-name suffixes like
+  // "-ford"), poi's/wilderness's suffixes are full standalone nouns, so
+  // gluing one onto an adjective just produced an unwieldy run-on word
+  // rather than anything that reads like a real place name. Every other
+  // theme still needs >=3.
+  const ONE_PATTERN_THEMES = new Set([
+    "poiFanciful", "wildernessForest", "wildernessSwamp", "wildernessDesert",
+    "wildernessTundra", "wildernessJungle", "wildernessPlains",
+  ]);
+
+  it("every theme has at least 1 pattern, and every theme not built from rootSuffixPatterns has at least 3", () => {
     // elvish was the one holdout through M4.15 (a single-pattern
     // syllable-chain demonstration); M4.16 rebuilt it as a full race theme,
-    // so the rule now holds universally.
+    // so the >=3 rule holds for every non-exempt theme.
     for (const theme of ALL_THEMES) {
-      expect(theme.patterns.length, `${theme.id} pattern count`).toBeGreaterThanOrEqual(3);
+      const minimum = ONE_PATTERN_THEMES.has(theme.id) ? 1 : 3;
+      expect(theme.patterns.length, `${theme.id} pattern count`).toBeGreaterThanOrEqual(minimum);
     }
   });
 });

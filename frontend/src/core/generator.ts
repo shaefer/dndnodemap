@@ -154,7 +154,27 @@ import { BIOMES } from "./taxonomy";
 // a padded one. Smaller/reshuffled banks in the already-wired themes shift
 // which word a given rng() draw resolves to, a real output change for every
 // existing seed.
-export const ALGORITHM_VERSION = "2.8.2";
+// 2.9.0 (M4.16.4): a pattern-level review pass, not just content — prompted
+// by a reviewer flagging that several sampled outputs were pattern problems,
+// not word problems. Two structural changes: (1) regionName's `compound`
+// pattern had the exact DIRECTIONS-gluing bug settlementMedieval's had
+// before 2.8.1 — its roots bank now excludes DIRECTIONS too (a new
+// `COMPOUND_ROOTS`/`EMBEDDED_ROOTS`, mirroring the settlement fix). (2)
+// _shared.ts's rootSuffixPatterns (poiFanciful + all six wilderness biomes)
+// dropped from three patterns to one: "two-word" and "the-two-word" merged
+// into a single pattern (a leading `["", "The "]` bank pick instead of two
+// separate Pattern entries — reusing existing bank-choice machinery, no new
+// engine capability), and the glued "compound" pattern was removed entirely
+// — poi's/wilderness's suffixes are full standalone nouns, not the bound
+// place-name suffixes settlement's own (unaffected) compound pattern uses,
+// so gluing them never read as a real place name, just an unwieldy run-on
+// word. Also removed a handful of specific words flagged in review (FAUNA's
+// "Rank" et al. — see settlement.ts/wilderness.ts for the full list). A real
+// output change for every seed: three of poiFanciful's/each wilderness
+// biome's rng() draws now resolve to a completely different pattern
+// distribution (1 shape instead of 3), and regionName's compound-pattern
+// roots bank is smaller.
+export const ALGORITHM_VERSION = "2.9.0";
 
 // --- Step 1: node placement ("grid" algorithm) -------------------------------
 

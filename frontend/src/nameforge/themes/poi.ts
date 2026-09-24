@@ -20,9 +20,9 @@ const ADJECTIVES: Bank = {
   ],
 };
 
-// Stored capitalized (for the two-word form: "Sunken Spire"); a lowercase
-// derived copy feeds the compound form ("Gloomgate") without duplicating
-// data — see _shared.ts's rootSuffixPatterns.
+// Stored capitalized — the two-word form's only shape since M4.16.4
+// dropped the glued "compound" pattern (see _shared.ts's
+// rootSuffixPatterns for why).
 const NOUNS: Bank = {
   categories: [
     {

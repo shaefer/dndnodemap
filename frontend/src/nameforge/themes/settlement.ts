@@ -22,10 +22,15 @@ import type { Bank, Theme, WordCategory } from "../types";
 // settlement-specific category (structures) that doesn't generalize.
 const STRUCTURES: WordCategory = {
   name: "structures",
+  // No "Dovecote" (M4.16.4) — it's itself already a compound word
+  // ("dove"+"cote"), so gluing another suffix onto it in the `compound`
+  // pattern produced ambiguous results like "Dovecotespring" (Dovecote+
+  // spring, or Dove+cotespring?). Replaced with "Rectory," a single
+  // morpheme.
   words: [
     "Mill", "Wynd", "Bridge", "Hall", "Barrow", "Croft", "Tower", "Chapel",
     "Market", "Forge", "Granary", "Stable", "Tavern", "Smithy", "Wharf", "Manor",
-    "Priory", "Guildhall", "Almonry", "Dovecote",
+    "Priory", "Guildhall", "Almonry", "Rectory",
   ],
 };
 
@@ -42,8 +47,11 @@ const ROOTS: Bank = {
 };
 
 // Stored capitalized (for the possessive pattern: "Devon's Ford"); a
-// lowercased derived copy feeds the compound form ("Ashford") — same
-// approach as _shared.ts's rootSuffixPatterns.
+// lowercased derived copy feeds the compound form ("Ashford"). Settlement's
+// own suffixes are genuine bound English place-name suffixes (-ford, -mere,
+// -bury), unlike poi's/wilderness's full-noun suffixes — which is exactly
+// why settlement keeps its glued compound pattern hand-written here while
+// _shared.ts's rootSuffixPatterns dropped its own compound form in M4.16.4.
 const SUFFIXES_CATEGORIES: WordCategory[] = [
   {
     name: "water features",
@@ -80,9 +88,13 @@ const SUFFIXES_CATEGORIES: WordCategory[] = [
     // "Garth"/"Holm" (M4.16.3) — all flagged as too obscure next to the more
     // recognizable Old-English-toponym suffixes this category otherwise
     // favors; "Village"/"Town" (M4.16.2) are the plainly-readable anchors.
+    // No "Worth" (M4.16.4) — homograph risk with the common word "worth"
+    // (value); no "Chester" — already reads as a complete, real place name
+    // on its own (the English city), so using it as a suffix (or after a
+    // possessive) reads oddly rather than as a settlement-type word.
     words: [
-      "Haven", "Gate", "Wick", "Ton", "Shire", "Stead", "Worth", "Bury", "Thorpe",
-      "Field", "Well", "Cross", "Wood", "Minster", "Chester", "Village", "Town",
+      "Haven", "Gate", "Wick", "Ton", "Shire", "Stead", "Bury", "Thorpe",
+      "Field", "Well", "Cross", "Wood", "Minster", "Village", "Town",
     ],
   },
 ];

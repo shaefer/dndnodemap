@@ -50,10 +50,16 @@ reproducible output.
 
 `settlementMedieval`, `poiFanciful`, `wildernessForest`/`wildernessSwamp`/
 `wildernessDesert`/`wildernessTundra`/`wildernessJungle`/`wildernessPlains`,
-`waterFeature`, `regionName`, and `elvishSyllable` (a demonstration of the
-`syllableChain` slot type for invented-language names).
+`waterFeature`, `regionName`, and 16 race/species themes (`themes/races/`,
+each using the `syllableChain` slot type for an invented native-tongue name
+alongside common-tongue forms).
 
 `themes/_shared.ts`'s `rootSuffixTheme(id, roots, suffixesCapitalized)` is a
-helper for the common "root + suffix" shape (compound, two-word, and
-"The X Y" forms, derived from one capitalized word list) — reuse it for a new
-theme rather than hand-writing the same three patterns again.
+helper for the common "root + suffix" shape — a single "[root] [suffix]" /
+"The [root] [suffix]" pattern (the leading "The" is a coin-flip bank pick,
+not a separate pattern) — reuse it for a new theme rather than hand-writing
+the same shape again. Note this helper deliberately has no glued "compound"
+form (M4.16.4) — only use it when the suffix bank is genuinely full
+standalone nouns; if a theme's suffixes are real bound place-name suffixes
+(like settlementMedieval's "-ford"/"-mere"), hand-write a compound pattern
+the way settlement.ts does instead.

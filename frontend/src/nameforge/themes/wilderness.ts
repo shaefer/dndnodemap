@@ -5,8 +5,9 @@ import { rootSuffixTheme } from "./_shared";
 // One root+suffix theme per Biome value (M4.15/M4.16.1: categories reuse
 // shared generic categories — colors/flora/materials — where they fit,
 // alongside biome-specific categories that don't generalize, all targeting
-// 16-20 entries per category). rootSuffixTheme derives the lowercase
-// compound form from the capitalized suffix bank automatically.
+// 16-20 entries per category). rootSuffixTheme produces a single "The
+// [root] [suffix]" / "[root] [suffix]" pattern (M4.16.4 dropped the glued
+// "compound" form — see _shared.ts's rootSuffixPatterns for why).
 
 const FOREST_ROOTS: Bank = {
   categories: [
@@ -60,9 +61,11 @@ const SWAMP_ROOTS: Bank = {
     },
     COLORS,
     {
+      // No "Rank" (M4.16.4) — "Ranksink" reads as a literal dirty sink
+      // before it reads as a place name.
       name: "swamp descriptors",
       words: [
-        "Rot", "Still", "Dank", "Fetid", "Murky", "Sodden", "Clammy", "Rank",
+        "Rot", "Still", "Dank", "Fetid", "Murky", "Sodden", "Clammy",
         "Brackish", "Miry", "Turbid", "Stagnant", "Reeking", "Slimy", "Waterlogged", "Humid",
       ],
     },
@@ -107,10 +110,12 @@ const DESERT_ROOTS: Bank = {
 const DESERT_SUFFIXES: Bank = {
   categories: [
     {
+      // No "Nothing" (M4.16.4) — reads too plain/literal as an actual place
+      // name compared to its equally-desolate siblings.
       name: "expanse",
       words: [
         "Wastes", "Expanse", "Reach", "Barrens", "Emptiness", "Void", "Drift", "Span",
-        "Sprawl", "Stretch", "Waste", "Flatland", "Nothing", "Immensity", "Vastness", "Openness",
+        "Sprawl", "Stretch", "Waste", "Flatland", "Immensity", "Vastness", "Openness",
       ],
     },
     {
@@ -285,8 +290,10 @@ const WATER_SUFFIXES_CATEGORIES = [
   {
     // M4.16.3: removed Lochan (obscure Gaelic loanword), Slough (unclear how
     // to even pronounce), and Puddle (not obscure, just tonally too small).
+    // M4.16.4: removed Eddy — glued onto "Hush" it blurred into "Husheddy,"
+    // which doesn't parse cleanly at a glance.
     name: "water bodies",
-    words: ["Pond", "Mere", "Pool", "Spring", "Lagoon", "Basin", "Cove", "Shallows", "Tarn", "Backwater", "Millpond", "Fen", "Eddy"],
+    words: ["Pond", "Mere", "Pool", "Spring", "Lagoon", "Basin", "Cove", "Shallows", "Tarn", "Backwater", "Millpond", "Fen"],
   },
   {
     // No "Cataract" (M4.16.3) — homograph risk (reads as the eye condition
